@@ -2,10 +2,15 @@ package s3
 
 import (
 	"encoding/hex"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
+	"net/http"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/iotafs/iotafs/internal/store"
 
@@ -129,4 +134,32 @@ func dropBucket(client *minio.Client, bucket string) error {
 		}
 	}
 	return client.RemoveBucket(bucket)
+}
+
+func TestGetPresignedURL(t *testing.T) {
+	s, err := New(cfg())
+	assert.NoError(t, err)
+
+	// Write a test file
+	k := "test.txt"
+	b := []byte(strings.Repeat("Hello World!\n", 100))
+	f := s.NewFile(bucket, k)
+	_, err = f.Write(b)
+	assert.NoError(t, err)
+	assert.NoError(t, f.Close())
+
+	// Generate a presigned GET url for the first 100 bytes of the file
+	rnge := store.Range{From: 0, To: 99}
+	url, err := s.PresignGetURL(bucket, k, time.Duration(5*time.Minute), &rnge)
+	assert.NoError(t, err)
+
+	// GET the URL
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", rnge.From, rnge.To))
+	resp, err := http.DefaultClient.Do(req)
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Equal(t, b[rnge.From:rnge.To+1], body)
 }

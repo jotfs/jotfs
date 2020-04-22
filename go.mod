@@ -3,6 +3,7 @@ module github.com/iotafs/iotafs
 go 1.14
 
 require (
+	github.com/aws/aws-sdk-go v1.30.12
 	github.com/google/uuid v1.1.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
 	github.com/minio/minio-go/v6 v6.0.53

@@ -3,8 +3,14 @@ package s3
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/iotafs/iotafs/internal/log"
 	"github.com/iotafs/iotafs/internal/store"
 	"github.com/minio/minio-go/v6"
@@ -20,6 +26,7 @@ type Config struct {
 
 // Store implements the Store interface for an S3-compatible backend.
 type Store struct {
+	cfg    Config
 	client *minio.Client
 }
 
@@ -76,7 +83,7 @@ func New(cfg Config) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{client}, nil
+	return &Store{cfg, client}, nil
 }
 
 func (s *Store) NewFile(bucket string, key string) store.WriteCanceller {
@@ -103,4 +110,34 @@ func (s *Store) Copy(bucket string, from string, to string) error {
 
 func (s *Store) Delete(bucket string, key string) error {
 	return s.client.RemoveObject(bucket, key)
+}
+
+func (s *Store) PresignGetURL(bucket string, key string, expires time.Duration, contentRange *store.Range) (string, error) {
+	// TODO: can't use minio's presign here because the public API doesn't support
+	// signing Range headers. Temporarily using aws-sdk-go instead.
+	cfg := aws.Config{
+		Endpoint:         &s.cfg.Endpoint,
+		S3ForcePathStyle: aws.Bool(true),
+		DisableSSL:       aws.Bool(true),
+		Credentials:      credentials.NewStaticCredentials(s.cfg.AccessKey, s.cfg.SecretKey, ""),
+	}
+	sess, err := session.NewSession(&cfg)
+	if err != nil {
+		return "", err
+	}
+	svc := s3.New(sess)
+
+	var rnge *string
+	if contentRange != nil {
+		x := fmt.Sprintf("bytes=%d-%d", contentRange.From, contentRange.To)
+		rnge = &x
+	}
+
+	req, _ := svc.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Range:  rnge,
+	})
+
+	return req.Presign(expires)
 }
