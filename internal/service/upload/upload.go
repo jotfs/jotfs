@@ -241,7 +241,7 @@ func (s *Service) UploadPack(uploadID string, blueprintID uint, r io.Reader) err
 			return err
 		}
 
-		if err := s.db.InsertFile(f); err != nil {
+		if err := s.db.InsertFile(f, fsum); err != nil {
 			log.OnError(func() error { return s.store.Delete(s.cfg.Bucket, fk) })
 			return err
 		}

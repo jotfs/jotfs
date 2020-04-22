@@ -90,13 +90,14 @@ func (a *Adapter) InsertPackIndex(index object.PackIndex) error {
 	})
 }
 
-func (a *Adapter) InsertFile(file object.File) error {
+// InsertFile saves a File object to the database.
+func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	return a.update(func(tx *sql.Tx) error {
 		fileID, err := insertFileIfNotExists(tx, file.Name)
 		if err != nil {
 			return err
 		}
-		fileVerID, err := insertFileVersion(tx, fileID, file)
+		fileVerID, err := insertFileVersion(tx, fileID, file, sum)
 		if err != nil {
 			return err
 		}
@@ -140,10 +141,10 @@ func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error 
 	return nil
 }
 
-func insertFileVersion(tx *sql.Tx, fileID int64, file object.File) (int64, error) {
+func insertFileVersion(tx *sql.Tx, fileID int64, file object.File, sum sum.Sum) (int64, error) {
 	createdAt := time.Now().UnixNano()
-	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks"})
-	res, err := tx.Exec(q, fileID, createdAt, file.Size(), len(file.Chunks))
+	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks", "sum"})
+	res, err := tx.Exec(q, fileID, createdAt, file.Size(), len(file.Chunks), sum[:])
 	if err != nil {
 		return 0, err
 	}

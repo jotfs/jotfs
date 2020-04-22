@@ -164,12 +164,12 @@ func LoadPackIndex(r io.Reader) (PackIndex, error) {
 
 func makeBlock(data []byte, sum sum.Sum, mode compress.Mode) ([]byte, error) {
 	// Reserve the first 8 bytes for the size of the compressed data
-	block := make([]byte, 8, len(data))
-
+	block := make([]byte, 8)
 	block = append(block, mode.AsUint8())
 	block = append(block, sum[:]...)
 	block = mode.Compress(block, data)
 
+	// TODO: if the compressed size is larger we should store the orignal instead
 	compressedSize := len(block) - (8 + 1 + len(sum))
 	binary.LittleEndian.PutUint64(block[:8], uint64(compressedSize))
 

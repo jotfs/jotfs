@@ -43,10 +43,12 @@ CREATE TABLE file_versions (
     created_at INTEGER NOT NULL,
     size       INTEGER NOT NULL,
     num_chunks INTEGER NOT NULL,
+    sum        BLOB NOT NULL,
 
     CHECK (created_at > 0),
     CHECK (size > 0),
     CHECK (num_chunks > 0),
+    CHECK (length(blob) = 32)
     UNIQUE (file, created_at)
 );
 
