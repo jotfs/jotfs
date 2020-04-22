@@ -1,9 +1,9 @@
 package object
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/iotafs/iotafs/internal/sum"
 )
@@ -13,9 +13,10 @@ const maxNameSize = 32768
 
 // File represents a file object.
 type File struct {
-	Name    string
-	Version uint
-	Chunks  []Chunk
+	Name string
+	// Version uint
+	CreatedAt time.Time
+	Chunks    []Chunk
 }
 
 // Chunk stores the inforamtion for a chunk within a file object.
@@ -26,25 +27,20 @@ type Chunk struct {
 }
 
 // MarshalBinary writes the binary representation of a file to a writer.
-func (f *File) MarshalBinary(w io.Writer) error {
-	if err := binary.Write(w, binary.LittleEndian, uint64(len(f.Name))); err != nil {
-		return err
-	}
-	if _, err := io.WriteString(w, f.Name); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint64(f.Version)); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, uint64(len(f.Chunks))); err != nil {
-		return err
-	}
+func (f *File) MarshalBinary() []byte {
+	b := make([]byte, 0)
+	b = append(b, uint64Binary(uint64(len(f.Name)))...)
+	b = append(b, []byte(f.Name)...)
+	// b = append(b, uint64Binary(uint64(f.Version))...)
+	b = append(b, uint64Binary(uint64(f.CreatedAt.UnixNano()))...)
+	b = append(b, uint64Binary(uint64(len(f.Chunks)))...)
+	buf := make([]byte, 0)
 	for _, c := range f.Chunks {
-		if err := c.marshalBinary(w); err != nil {
-			return err
-		}
+		buf = c.marshalBinary(buf)
+		b = append(b, buf...)
+		buf = buf[:0]
 	}
-	return nil
+	return b
 }
 
 // UnmarshalBinary reads the binary representation of a file from a reader.
@@ -62,7 +58,7 @@ func (f *File) UnmarshalBinary(r io.Reader) error {
 		return err
 	}
 
-	version, err := getBinaryUint64(r)
+	createdAtNanos, err := getBinaryUint64(r)
 	if err != nil {
 		return err
 	}
@@ -82,7 +78,7 @@ func (f *File) UnmarshalBinary(r io.Reader) error {
 	}
 
 	f.Name = string(name)
-	f.Version = uint(version)
+	f.CreatedAt = time.Unix(0, int64(createdAtNanos))
 	f.Chunks = chunks
 
 	return nil
@@ -97,17 +93,11 @@ func (f File) Size() uint64 {
 	return size
 }
 
-func (c Chunk) marshalBinary(w io.Writer) error {
-	if err := binary.Write(w, binary.LittleEndian, c.Sequence); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, c.Size); err != nil {
-		return err
-	}
-	if _, err := w.Write(c.Sum[:]); err != nil {
-		return err
-	}
-	return nil
+func (c Chunk) marshalBinary(b []byte) []byte {
+	b = append(b, uint64Binary(c.Sequence)...)
+	b = append(b, uint64Binary(c.Size)...)
+	b = append(b, c.Sum[:]...)
+	return b
 }
 
 func (c *Chunk) unmarshalBinary(r io.Reader) error {

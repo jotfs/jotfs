@@ -40,15 +40,14 @@ CREATE INDEX files_name_index ON files(name);
 CREATE TABLE file_versions (
     id         INTEGER PRIMARY KEY,
     file       INTEGER NOT NULL REFERENCES files (id),
-    version    INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     size       INTEGER NOT NULL,
     num_chunks INTEGER NOT NULL,
 
-    CHECK (version >= 0),
-    CHECK (created_at > 0)
+    CHECK (created_at > 0),
     CHECK (size > 0),
-    CHECK (num_chunks > 0)
+    CHECK (num_chunks > 0),
+    UNIQUE (file, created_at)
 );
 
 

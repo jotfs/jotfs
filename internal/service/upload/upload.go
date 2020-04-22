@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/db"
@@ -55,11 +56,17 @@ func (f *fileUpload) setProcessing(id uint) {
 	f.processing[id] = true
 }
 
-// isProcessing checks if a
 func (f *fileUpload) isProcessing(id uint) bool {
 	f.RLock()
 	defer f.RUnlock()
 	_, ok := f.processing[id]
+	return ok
+}
+
+func (f *fileUpload) isRecieved(id uint) bool {
+	f.RLock()
+	defer f.RUnlock()
+	_, ok := f.received[id]
 	return ok
 }
 
@@ -167,7 +174,7 @@ func (s *Service) UploadPack(uploadID string, blueprintID uint, r io.Reader) err
 	defer upload.unsetProcessing(blueprintID)
 	blueprint := upload.blueprints[blueprintID]
 
-	// Create a file with a temporary name in the store for the packfile
+	// Create a file with a temporary key name in the store for the packfile
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return err
@@ -215,8 +222,29 @@ func (s *Service) UploadPack(uploadID string, blueprintID uint, r io.Reader) err
 	upload.setReceived(blueprintID)
 
 	if upload.allReceived() {
-		// Save the File to the database
-		s.db.InsertFileWithNewVersion(upload.file)
+		f := upload.file
+		if err != nil {
+			return err
+		}
+		f = object.File{Name: f.Name, CreatedAt: time.Now(), Chunks: f.Chunks}
+
+		// Save the File to the store
+		fb := f.MarshalBinary()
+		fsum := sum.Compute(fb)
+		fk := service.FileKey(fsum)
+		ff := s.store.NewFile(s.cfg.Bucket, fk)
+		if _, err := ff.Write(fb); err != nil {
+			log.OnError(ff.Cancel)
+			return fmt.Errorf("writing file %s to store: %w", f.Name, err)
+		}
+		if err := ff.Close(); err != nil {
+			return err
+		}
+
+		if err := s.db.InsertFile(f); err != nil {
+			log.OnError(func() error { return s.store.Delete(s.cfg.Bucket, fk) })
+			return err
+		}
 	}
 
 	return nil
