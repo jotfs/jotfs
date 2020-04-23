@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/db/testdb"
+	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/object"
 	"github.com/iotafs/iotafs/internal/service"
 	"github.com/iotafs/iotafs/internal/sum"
@@ -19,7 +19,7 @@ import (
 func TestNew(t *testing.T) {
 	store := service.MockStore{}
 	cfg := Config{Mode: compress.None, Bucket: "test"}
-	db, err := testdb.Empty()
+	db, err := db.Empty()
 	if err != nil {
 		log.Fatalf("%v", err)
 	}

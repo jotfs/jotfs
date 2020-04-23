@@ -5,20 +5,21 @@ CREATE TABLE packs (
     size       INTEGER NOT NULL
 
     CHECK (length(sum) = 32),
-    CHECK (num_chunks > 0)
+    CHECK (num_chunks > 0),
     CHECK (size > 0)
 );
-
 
 CREATE TABLE indexes (
     id            INTEGER PRIMARY KEY,
     pack          INTEGER NOT NULL REFERENCES packs (id),
+    sequence      INTEGER NOT NULL,
     sum           BLOB NOT NULL,
     chunk_size    INTEGER NOT NULL,
     mode          INTEGER NOT NULL,
     offset        INTEGER NOT NULL,
     size          INTEGER NOT NULL
 
+    CHECK (sequence >= 0),
     CHECK (length(sum) = 32),
     CHECK (chunk_size > 0),
     CHECK (mode >= 0),
@@ -48,9 +49,9 @@ CREATE TABLE file_versions (
     CHECK (created_at > 0),
     CHECK (size > 0),
     CHECK (num_chunks > 0),
-    CHECK (length(blob) = 32)
-    UNIQUE (file, created_at)
+    CHECK (length(sum) = 32)
 );
+CREATE UNIQUE INDEX file_versions_sum_index ON file_versions(sum);
 
 
 CREATE TABLE file_contents (

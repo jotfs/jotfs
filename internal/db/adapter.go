@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/log"
 	"github.com/iotafs/iotafs/internal/object"
 	"github.com/iotafs/iotafs/internal/sum"
@@ -90,6 +91,11 @@ func (a *Adapter) InsertPackIndex(index object.PackIndex) error {
 	})
 }
 
+// // GetPackIndex gets a PackIndex from the database.
+// func (a *Adapter) GetPackIndex(s sum.Sum) (object.PackIndex, error) {
+
+// }
+
 // InsertFile saves a File object to the database.
 func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	return a.update(func(tx *sql.Tx) error {
@@ -105,9 +111,99 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	})
 }
 
+type ChunkIndex struct {
+	Sequence uint64
+	PackSum  sum.Sum
+	Block    object.BlockInfo
+}
+
+func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
+
+	// Get the row ID for the file version and
+	q := "SELECT id, num_chunks FROM file_versions WHERE sum = ?"
+	var verID int64
+	var nChunks int
+	row := a.db.QueryRow(q, s)
+	if err := row.Scan(&verID, &nChunks); err == sql.ErrNoRows {
+		return nil, fmt.Errorf("not found")
+	} else if err != nil {
+		return nil, err
+	}
+
+	q = `
+		SELECT 
+			file_contents.sequence, 
+			indexes.sum,
+			indexes.chunk_size,
+			indexes.mode,
+			indexes.offset,
+			indexes.size,
+			indexes.sequence
+			packs.sum
+		FROM 
+			file_contents 
+			JOIN indexes ON indexes.id = file_contents.idx
+			JOIN packs ON packs.id = indexes.pack
+		WHERE
+			file_contents.file_version = ?
+		ORDER BY
+			file_contents.sequence
+	`
+	rows, err := a.db.Query(q, verID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	chunks := make([]ChunkIndex, nChunks)
+	var i int
+	for ; rows.Next(); i++ {
+		if i >= nChunks {
+			return nil, fmt.Errorf("number of chunks greater than expected %d", nChunks)
+		}
+		var (
+			cSeq    uint64
+			cSum    sum.Sum
+			cSize   uint64
+			mode    uint8
+			bOffset uint64
+			bSize   uint64
+			bSeq    uint64
+			pSum    sum.Sum
+		)
+		if err := rows.Scan(&cSeq, &cSum, &cSize, &mode, &bOffset, &bSize, &bSeq, &pSum); err != nil {
+			return nil, err
+		}
+		cmode, err := compress.FromUint8(mode)
+		if err != nil {
+			return nil, err
+		}
+		if uint64(i) != cSeq {
+			return nil, fmt.Errorf("expected next chunk sequence %d but received %d", i, cSeq)
+		}
+		chunks[i] = ChunkIndex{
+			Sequence: cSeq,
+			PackSum:  pSum,
+			Block: object.BlockInfo{
+				Sum:       cSum,
+				ChunkSize: cSize,
+				Sequence:  bSeq,
+				Offset:    bOffset,
+				Size:      bSize,
+				Mode:      cmode,
+			},
+		}
+	}
+	if i != nChunks-1 {
+		return nil, fmt.Errorf("expected %d chunks but received %d", nChunks, i)
+	}
+
+	return chunks, nil
+}
+
 func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
 	q := insertOne("packs", []string{"sum", "num_chunks", "size"})
-	res, err := tx.Exec(q, index.Sum, len(index.Blocks), index.Size())
+	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size())
 	if err != nil {
 		return 0, err
 	}
@@ -115,15 +211,35 @@ func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
 }
 
 func insertPackBlocks(tx *sql.Tx, packID int64, blocks []object.BlockInfo) error {
-	q := insertOne("indexes", []string{"pack", "sum", "chunk_size", "mode", "offset", "size"})
+	q := insertOne(
+		"indexes",
+		[]string{"pack", "sequence", "sum", "chunk_size", "mode", "offset", "size"},
+	)
 	for _, b := range blocks {
-		_, err := tx.Exec(q, packID, b.Sum, b.ChunkSize, b.Mode, b.Offset, b.Size)
+		_, err := tx.Exec(q, packID, b.Sequence, b.Sum[:], b.ChunkSize, b.Mode, b.Offset, b.Size)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+// func getPackBlocks(tx *sql.Tx, packID int64) ([]object.BlockInfo, error) {
+// 	q := `
+// 		SELECT pack, sequence, sum, chunk_size, mode, offset, size
+// 		FROM indexes
+// 		WHERE pack = $1
+// 	`
+// 	rows, err := tx.Query(q, packID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	blocks := make([]object.BlockInfo, 0)
+// 	for rows.Next() {
+
+// 	}
+
+// }
 
 func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error {
 	q := insertOne("file_contents", []string{"file_version", "idx", "sequence"})
@@ -173,7 +289,7 @@ func insertFileIfNotExists(tx *sql.Tx, name string) (int64, error) {
 // found.
 func getPackIndexID(tx *sql.Tx, sum sum.Sum) (int64, error) {
 	q := "SELECT id FROM indexes WHERE sum = ? ORDER BY id"
-	row := tx.QueryRow(q, sum)
+	row := tx.QueryRow(q, sum[:])
 	var id int64
 	err := row.Scan(&id)
 	return id, err
