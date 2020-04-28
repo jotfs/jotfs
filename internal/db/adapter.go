@@ -46,6 +46,11 @@ func (a *Adapter) update(f func(tx *sql.Tx) error) error {
 	return tx.Commit()
 }
 
+func (a *Adapter) ChunkExists(s sum.Sum) (bool, error) {
+	// TODO: implement
+	return false, nil
+}
+
 // ChunksExist checks if chunks, identified by their checksum, exist in the file store.
 // Returns a bool for each chunk.
 func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {

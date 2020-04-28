@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+
 )
 
 // Empty returns an adapter to a new in-memory database with all tables created.

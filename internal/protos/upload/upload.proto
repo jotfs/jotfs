@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package upload;
+option go_package = "internal/protos/upload";
+
+service FileUploader {
+    rpc Init(Empty) returns (UploadID);
+    rpc AddChunk(Chunk) returns (Upload);
+    rpc Abort(UploadID) returns (Empty);
+    rpc Complete(File) returns (Empty);
+}
+
+message File {
+    string upload_id = 1;
+    string name = 2;
+}
+
+message UploadID {
+    string id = 1;
+}
+
+message Chunk {
+    string upload_id = 1;
+    uint64 sequence = 2;
+    uint64 size = 3;
+    bytes sum = 4;
+    bool final = 5;
+}
+
+message Upload {
+    uint64 sequence = 1;
+    bool upload = 2;
+}
+
+
+message Empty {}
+

@@ -14,7 +14,7 @@ const Size = 32
 // Sum stores a checksum
 type Sum [Size]byte
 
-// FromBytes converts a byte slice to a Sum. Its length must be `Size` bytes.
+// FromBytes converts a byte slice to a Sum. Its length must be sum.Size bytes.
 func FromBytes(b []byte) (Sum, error) {
 	if len(b) != Size {
 		return Sum{}, fmt.Errorf("length must be %d not %d", Size, len(b))
