@@ -6,11 +6,13 @@ CREATE TABLE packs (
     id         INTEGER PRIMARY KEY,
     sum        BLOB NOT NULL,
     num_chunks INTEGER NOT NULL,
-    size       INTEGER NOT NULL
+    size       INTEGER NOT NULL,
+    file_id    TEXT NOT NULL,
 
     CHECK (length(sum) = 32),
     CHECK (num_chunks > 0),
-    CHECK (size > 0)
+    CHECK (size > 0),
+    CHECK (length(file_id) > 0)
 );
 
 CREATE TABLE indexes (

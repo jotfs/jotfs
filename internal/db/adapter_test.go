@@ -17,13 +17,14 @@ func TestPackIndex(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer db.Close()
 
-	index := packIndexExample()
-	assert.NoError(t, db.InsertPackIndex(index))
+	id, index := packIndexExample()
+	assert.NoError(t, db.InsertPackIndex(index, id))
 }
 
-func packIndexExample() object.PackIndex {
-	return object.PackIndex{
+func packIndexExample() (string, object.PackIndex) {
+	return "id", object.PackIndex{
 		Sum: sum.Compute([]byte("123456789")),
 		Blocks: []object.BlockInfo{
 			{

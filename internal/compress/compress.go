@@ -12,8 +12,8 @@ type Mode uint8
 
 // Data compression modes
 const (
-	None Mode = 1
-	Zstd Mode = 2
+	None Mode = 0
+	Zstd Mode = 1
 )
 
 // AsUint8 converts a compression mode to a uint8.
@@ -24,7 +24,7 @@ func (m Mode) AsUint8() uint8 {
 // FromUint8 converts a uint8 to a compression mode. Returns an error if the value
 // is an unknown mode.
 func FromUint8(v uint8) (Mode, error) {
-	if v >= 1 && v <= 2 {
+	if v <= 1 {
 		return Mode(v), nil
 	}
 	return 0, fmt.Errorf("invalid compression mode %d", v)

@@ -11,9 +11,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/object"
+	"github.com/iotafs/iotafs/internal/packer"
 	pb "github.com/iotafs/iotafs/internal/protos/upload"
+	"github.com/iotafs/iotafs/internal/server/testutil"
 	"github.com/iotafs/iotafs/internal/sum"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -23,7 +26,9 @@ import (
 
 func TestServerInit(t *testing.T) {
 	qSize := uint(100)
-	srv := newTestingServer(qSize)
+	db := newTestDB()
+	defer db.Close()
+	srv := newTestingServer(db, qSize)
 
 	// Init upload
 	u, err := srv.Init(context.Background(), &pb.Empty{})
@@ -99,18 +104,23 @@ func TestServerInit(t *testing.T) {
 
 func TestServerUploadData(t *testing.T) {
 	qSize := uint(100)
-	srv := newTestingServer(qSize)
+	db := newTestDB()
+	defer db.Close()
+	srv := newTestingServer(db, qSize)
+	defer srv.db.Close()
 
 	// Add a chunk and close the stream
 	data, c := randChunk(100, 0)
-	u, _ := srv.Init(context.Background(), &pb.Empty{})
-	srv.AddChunk(context.Background(), &pb.Chunk{
+	u, err := srv.Init(context.Background(), &pb.Empty{})
+	assert.NoError(t, err)
+	_, err = srv.AddChunk(context.Background(), &pb.Chunk{
 		UploadId: u.Id,
 		Sequence: c.Sequence,
 		Size:     c.Size,
 		Sum:      c.Sum[:],
 		Final:    true,
 	})
+	assert.NoError(t, err)
 
 	// Upload the chunk data
 	url := fmt.Sprintf("http://example.com/?upload_id=%s", u.Id)
@@ -131,42 +141,50 @@ func TestServerUploadData(t *testing.T) {
 
 func TestPackerBadData(t *testing.T) {
 	// Add a chunk to a packer
-	queue := make(chan entry)
-	packer := newPacker(queue)
+	adapter := newTestDB()
+	defer adapter.Close()
+	store := testutil.MockStore{}
+	queue := make(chan packEntry)
+	packer := newChunkPacker(store, queue, packer.Config{Bucket: "", Mode: compress.None})
 
 	data, c := randChunk(100, 0)
 	go func() {
-		queue <- entry{chunk: c, final: true}
+		queue <- packEntry{chunk: c, final: true}
 	}()
 
 	// Error if empty data
 	var emptyBuf bytes.Buffer
-	err := packer.loadNextChunk(context.Background(), &emptyBuf)
+	err := packer.loadNextChunk(context.Background(), &emptyBuf, adapter)
 	assertTwirpError(t, err, twirp.Aborted)
-	assert.Contains(t, err.Error(), "no data")
 
 	// Error if partial data
 	var partialBuf bytes.Buffer
 	partialBuf.Write(data[:10])
-	err = packer.loadNextChunk(context.Background(), &partialBuf)
+	err = packer.loadNextChunk(context.Background(), &partialBuf, adapter)
 	assertTwirpError(t, err, twirp.Aborted)
-	assert.Contains(t, err.Error(), "unexpected EOF")
 
 	// Error if data with different checksum
 	diff, _ := randChunk(100, 0)
 	var diffBuf bytes.Buffer
 	diffBuf.Write(diff)
-	err = packer.loadNextChunk(context.Background(), &diffBuf)
+	err = packer.loadNextChunk(context.Background(), &diffBuf, adapter)
 	assertTwirpError(t, err, twirp.Aborted)
-	assert.Contains(t, err.Error(), "expected checksum")
 }
 
-func newTestingServer(qSize uint) *Server {
+func newTestDB() *db.Adapter {
+	// id, _ := uuid.NewRandom()
+	// file := path.Join(dir, id.String())
 	adapter, err := db.Empty()
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv, err := NewServer(adapter, qSize)
+	return adapter
+}
+
+func newTestingServer(adapter *db.Adapter, qSize uint) *Server {
+	// adapter := newTestDB()
+	s := testutil.MockStore{}
+	srv, err := NewServer(adapter, s, Config{"", qSize, compress.None})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -60,6 +60,8 @@ func (b *PackfileBuilder) Append(data []byte, mode compress.Mode) (sum.Sum, erro
 	}
 
 	// Write the block, with compressed chunk data, to the packfile
+	// TODO: a partial write here will lead to a corrupted packfile. Ideally, the write
+	// should complete in entirety, or fail with 0 bytes written.
 	offset := b.w.bytesWritten // Need to get offset before write
 	block, err := makeBlock(data, s, mode)
 	if err != nil {
@@ -91,6 +93,11 @@ func (b *PackfileBuilder) Append(data []byte, mode compress.Mode) (sum.Sum, erro
 func (b *PackfileBuilder) Build() PackIndex {
 	b.closed = true
 	return PackIndex{Blocks: b.idx, Sum: b.hash.Sum()}
+}
+
+// BytesWritten returns the number of bytes written to the packfile.
+func (b *PackfileBuilder) BytesWritten() uint64 {
+	return b.w.bytesWritten
 }
 
 type block struct {

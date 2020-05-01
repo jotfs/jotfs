@@ -86,9 +86,9 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 }
 
 // InsertPackIndex saves a PackIndex to the database.
-func (a *Adapter) InsertPackIndex(index object.PackIndex) error {
+func (a *Adapter) InsertPackIndex(index object.PackIndex, id string) error {
 	return a.update(func(tx *sql.Tx) error {
-		packID, err := insertPackfile(tx, index)
+		packID, err := insertPackfile(tx, index, id)
 		if err != nil {
 			return err
 		}
@@ -206,9 +206,9 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 	return chunks, nil
 }
 
-func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
-	q := insertOne("packs", []string{"sum", "num_chunks", "size"})
-	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size())
+func insertPackfile(tx *sql.Tx, index object.PackIndex, id string) (int64, error) {
+	q := insertOne("packs", []string{"sum", "num_chunks", "size", "file_id"})
+	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size(), id)
 	if err != nil {
 		return 0, err
 	}
