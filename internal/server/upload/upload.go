@@ -69,7 +69,8 @@ func (s *Server) Init(ctx context.Context, _ *pb.Empty) (*pb.UploadID, error) {
 // AddChunk adds a chunk to a file upload. It expects to receive chunks in sequential
 // order. Returns a ResourceExhausted error if its internal work queue waiting for
 // chunk data uploads is full. In this case, the request should be retried after more
-// chunk data is uploaded.
+// chunk data is uploaded. No further chunks should be sent after the chunk with its
+// Final field set to true.
 func (s *Server) AddChunk(ctx context.Context, c *pb.Chunk) (*pb.Upload, error) {
 	upload, err := s.getUpload(c.UploadId)
 	if err != nil {
@@ -139,6 +140,8 @@ func (s *Server) Abort(ctx context.Context, u *pb.UploadID) (*pb.Empty, error) {
 	return &pb.Empty{}, nil
 }
 
+// Complete marks an upload as complete. The caller should not call this method until
+// the final chunk has been sent.
 func (s *Server) Complete(ctx context.Context, f *pb.File) (*pb.Empty, error) {
 	upload, err := s.getUpload(f.UploadId)
 	if err != nil {
@@ -185,6 +188,7 @@ func (s *Server) Complete(ctx context.Context, f *pb.File) (*pb.Empty, error) {
 	return &pb.Empty{}, nil
 }
 
+// ChunkUploadHandler is a HTTP request handler that accepts chunk data.
 func (s *Server) ChunkUploadHandler(w http.ResponseWriter, r *http.Request) {
 	uploadID := r.URL.Query().Get("upload_id")
 	upload, err := s.getUpload(uploadID)
@@ -192,6 +196,8 @@ func (s *Server) ChunkUploadHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, herr.message, herr.code)
 		return
 	}
+	upload.packer.Lock()
+	defer upload.packer.Unlock()
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(30*time.Second))
 	defer cancel()
@@ -229,6 +235,7 @@ type fileUpload struct {
 }
 
 type chunkPacker struct {
+	sync.Mutex
 	*packer.Packer
 	next  *packEntry
 	queue <-chan packEntry
@@ -247,7 +254,7 @@ func newFileUpload(s store.Store, cfg Config) *fileUpload {
 
 func newChunkPacker(s store.Store, q <-chan packEntry, cfg packer.Config) chunkPacker {
 	p := packer.New(s, cfg)
-	return chunkPacker{p, nil, q, make(chan struct{}, 1)}
+	return chunkPacker{sync.Mutex{}, p, nil, q, make(chan struct{}, 1)}
 }
 
 func (u *fileUpload) nextSeq() uint64 {
@@ -321,7 +328,7 @@ func (p *chunkPacker) flush(db *db.Adapter) error {
 	}
 	id, index, err := p.Flush()
 	if err != nil {
-		// Data in the packfile is potentially lost. The client should regard the uplaod
+		// Data in the packfile is potentially lost. The client should regard the upload
 		// as corrupted.
 		// TODO: log this error
 		return twirp.NewError(twirp.DataLoss, "chunk data lost")

@@ -2,7 +2,6 @@ package packer
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/iotafs/iotafs/internal/compress"
@@ -18,10 +17,8 @@ const (
 )
 
 // Packer takes a stream of chunk data and writes each to a packfile in the order they
-// are recieved.
+// are recieved. The packer can be flushed to start a new packfile.
 type Packer struct {
-	m sync.Mutex
-
 	cfg   Config
 	store store.Store
 
@@ -48,8 +45,6 @@ func New(s store.Store, cfg Config) *Packer {
 // AddChunk adds a chunk of data, with a given sum, to the current packfile owned by
 // the packer.
 func (p *Packer) AddChunk(data []byte, sum sum.Sum) error {
-	p.m.Lock()
-	defer p.m.Unlock()
 	if p.builder == nil {
 		if err := p.initBuilder(); err != nil {
 			return err
@@ -67,10 +62,8 @@ func (p *Packer) AddChunk(data []byte, sum sum.Sum) error {
 
 // Flush closes the current packfile owned by the packer, committing the packfile and
 // its associated pack index to the store. Returns the the packfile store id and the
-// pack index. Returns an error if the current packfile is empty.
+// pack index. Returns an error if the current packfile has no chunks.
 func (p *Packer) Flush() (string, object.PackIndex, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
 	if p.nchunks == 0 {
 		return "", object.PackIndex{}, errors.New("builder is empty")
 	}
@@ -92,21 +85,18 @@ func (p *Packer) Flush() (string, object.PackIndex, error) {
 	return id, index, nil
 }
 
-// NumChunks returns the number of chunks in the current packfile.
-func (p *Packer) NumChunks() int {
-	p.m.Lock()
-	defer p.m.Unlock()
-	return p.nchunks
-}
-
 // Size returns the byte-size of the current packfile owned by the packer.
 func (p *Packer) Size() uint64 {
-	p.m.Lock()
-	p.m.Unlock()
 	if p.builder == nil {
 		return 0
 	}
 	return p.builder.BytesWritten()
+}
+
+// NumChunks returns the number of chunks in the current packfile owned by the packer.
+// NumChunks can return 0 even if Size is greater than zero.
+func (p *Packer) NumChunks() int {
+	return p.nchunks
 }
 
 func (p *Packer) initBuilder() error {
