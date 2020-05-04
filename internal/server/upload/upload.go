@@ -2,7 +2,6 @@ package upload
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,11 +46,8 @@ type Config struct {
 }
 
 // NewServer creates a new Server.
-func NewServer(adapter *db.Adapter, store store.Store, cfg Config) (*Server, error) {
-	if cfg.QSize == 0 {
-		return nil, errors.New("queue size must be at least 1")
-	}
-	return &Server{adapter, store, make(map[string]*fileUpload), cfg}, nil
+func NewServer(adapter *db.Adapter, store store.Store, cfg Config) *Server {
+	return &Server{adapter, store, make(map[string]*fileUpload), cfg}
 }
 
 // Init initializes a new file upload.

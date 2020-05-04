@@ -172,8 +172,6 @@ func TestPackerBadData(t *testing.T) {
 }
 
 func newTestDB() *db.Adapter {
-	// id, _ := uuid.NewRandom()
-	// file := path.Join(dir, id.String())
 	adapter, err := db.Empty()
 	if err != nil {
 		log.Fatal(err)
@@ -182,12 +180,8 @@ func newTestDB() *db.Adapter {
 }
 
 func newTestingServer(adapter *db.Adapter, qSize uint) *Server {
-	// adapter := newTestDB()
 	s := testutil.MockStore{}
-	srv, err := NewServer(adapter, s, Config{"", qSize, compress.None})
-	if err != nil {
-		log.Fatal(err)
-	}
+	srv := NewServer(adapter, s, Config{"", qSize, compress.None})
 	return srv
 }
 

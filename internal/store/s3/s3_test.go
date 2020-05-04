@@ -22,15 +22,17 @@ const bucket = "iotafs-testing"
 
 func cfg() Config {
 	return Config{
-		Endpoint:  "localhost:9000",
-		AccessKey: "minioadmin",
-		SecretKey: "minioadmin",
+		Endpoint:   "localhost:9000",
+		AccessKey:  "minioadmin",
+		SecretKey:  "minioadmin",
+		DisableSSL: true,
+		PathStyle:  true,
 	}
 }
 
 func TestMain(m *testing.M) {
 	cfg := cfg()
-	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.SSL)
+	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, !cfg.DisableSSL)
 	if err != nil {
 		log.Fatalf("connecting to server: %v\n", err)
 	}
@@ -151,6 +153,8 @@ func TestGetPresignedURL(t *testing.T) {
 	// Generate a presigned GET url for the first 100 bytes of the file
 	rnge := store.Range{From: 0, To: 99}
 	url, err := s.PresignGetURL(bucket, k, time.Duration(5*time.Minute), &rnge)
+	fmt.Println(url)
+	assert.NotEmpty(t, url)
 	assert.NoError(t, err)
 
 	// GET the URL

@@ -17,11 +17,12 @@ import (
 )
 
 type Config struct {
-	Endpoint  string
-	AccessKey string
-	SecretKey string
-	PathStyle bool
-	SSL       bool
+	Region     string
+	Endpoint   string
+	AccessKey  string
+	SecretKey  string
+	PathStyle  bool
+	DisableSSL bool
 }
 
 // Store implements the Store interface for an S3-compatible backend.
@@ -79,7 +80,7 @@ func (f *s3File) Cancel() error {
 
 // New creates a new client for accessing an S3-backed store.
 func New(cfg Config) (*Store, error) {
-	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, cfg.SSL)
+	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, !cfg.DisableSSL)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +118,8 @@ func (s *Store) PresignGetURL(bucket string, key string, expires time.Duration, 
 	// signing Range headers. Temporarily using aws-sdk-go instead.
 	cfg := aws.Config{
 		Endpoint:         &s.cfg.Endpoint,
-		S3ForcePathStyle: aws.Bool(true),
-		DisableSSL:       aws.Bool(true),
+		S3ForcePathStyle: &s.cfg.PathStyle,
+		DisableSSL:       &s.cfg.DisableSSL,
 		Credentials:      credentials.NewStaticCredentials(s.cfg.AccessKey, s.cfg.SecretKey, ""),
 	}
 	sess, err := session.NewSession(&cfg)
