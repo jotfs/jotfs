@@ -11,7 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/db"
 	twup "github.com/iotafs/iotafs/internal/protos/upload"
 	"github.com/iotafs/iotafs/internal/server/upload"
@@ -28,6 +27,7 @@ const (
 	defaultQSize    = 10
 
 	defaultEndpoint = "s3.amazonaws.com"
+	miB             = 1024 * 1024
 )
 
 type serverConfig struct {
@@ -168,8 +168,12 @@ func (c *config) setDefaults() {
 func loggingServerHooks() *twirp.ServerHooks {
 	hooks := &twirp.ServerHooks{}
 
+	// Define a key type to keep context.WithValue happy
+	type key int
+	const receivedAtKey key = 1
+
 	hooks.RequestReceived = func(ctx context.Context) (context.Context, error) {
-		ctx = context.WithValue(ctx, "receivedAt", time.Now())
+		ctx = context.WithValue(ctx, receivedAtKey, time.Now())
 		return ctx, nil
 	}
 
@@ -226,24 +230,22 @@ func run() error {
 	}
 	log.Print("done")
 
-	hooks := loggingServerHooks()
-
-	uploadSrv := upload.NewServer(adapter, store, upload.Config{
-		Bucket: cfg.Store.Bucket,
-		QSize:  defaultQSize,
-		Mode:   compress.None,
+	srv := upload.NewServer(adapter, store, upload.Config{
+		Bucket:          cfg.Store.Bucket,
+		MaxChunkSize:    8 * miB,
+		MaxPackfileSize: 128 * miB,
 	})
-	uploadHandler := twup.NewFileUploaderServer(uploadSrv, hooks)
+	srvHandler := twup.NewIotaFSServer(srv, loggingServerHooks())
 
 	mux := http.NewServeMux()
-	mux.Handle(uploadHandler.PathPrefix(), uploadHandler)
-	mux.HandleFunc("/chunk", func(w http.ResponseWriter, req *http.Request) {
+	mux.Handle(srvHandler.PathPrefix(), srvHandler)
+	mux.HandleFunc("/packfile", func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != "POST" {
 			code := http.StatusMethodNotAllowed
 			http.Error(w, http.StatusText(code), code)
 			return
 		}
-		uploadSrv.ChunkUploadHandler(w, req)
+		srv.PackfileUploadHandler(w, req)
 	})
 
 	log.Printf("Listening on port %d", cfg.Server.Port)

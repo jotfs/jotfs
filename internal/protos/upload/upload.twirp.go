@@ -28,33 +28,29 @@ import io "io"
 import json "encoding/json"
 import url "net/url"
 
-// ======================
-// FileUploader Interface
-// ======================
+// ================
+// IotaFS Interface
+// ================
 
-type FileUploader interface {
-	Init(context.Context, *Empty) (*UploadID, error)
+type IotaFS interface {
+	ChunksExist(context.Context, *ChunksExistRequest) (*ChunksExistResponse, error)
 
-	AddChunk(context.Context, *Chunk) (*Upload, error)
-
-	Abort(context.Context, *UploadID) (*Empty, error)
-
-	Complete(context.Context, *File) (*Empty, error)
+	CreateFile(context.Context, *File) (*FileID, error)
 }
 
-// ============================
-// FileUploader Protobuf Client
-// ============================
+// ======================
+// IotaFS Protobuf Client
+// ======================
 
-type fileUploaderProtobufClient struct {
+type iotaFSProtobufClient struct {
 	client HTTPClient
-	urls   [4]string
+	urls   [2]string
 	opts   twirp.ClientOptions
 }
 
-// NewFileUploaderProtobufClient creates a Protobuf client that implements the FileUploader interface.
+// NewIotaFSProtobufClient creates a Protobuf client that implements the IotaFS interface.
 // It communicates using Protobuf and can be configured with a custom HTTPClient.
-func NewFileUploaderProtobufClient(addr string, client HTTPClient, opts ...twirp.ClientOption) FileUploader {
+func NewIotaFSProtobufClient(addr string, client HTTPClient, opts ...twirp.ClientOption) IotaFS {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -64,26 +60,24 @@ func NewFileUploaderProtobufClient(addr string, client HTTPClient, opts ...twirp
 		o(&clientOpts)
 	}
 
-	prefix := urlBase(addr) + FileUploaderPathPrefix
-	urls := [4]string{
-		prefix + "Init",
-		prefix + "AddChunk",
-		prefix + "Abort",
-		prefix + "Complete",
+	prefix := urlBase(addr) + IotaFSPathPrefix
+	urls := [2]string{
+		prefix + "ChunksExist",
+		prefix + "CreateFile",
 	}
 
-	return &fileUploaderProtobufClient{
+	return &iotaFSProtobufClient{
 		client: client,
 		urls:   urls,
 		opts:   clientOpts,
 	}
 }
 
-func (c *fileUploaderProtobufClient) Init(ctx context.Context, in *Empty) (*UploadID, error) {
+func (c *iotaFSProtobufClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Init")
-	out := new(UploadID)
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
+	out := new(ChunksExistResponse)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -99,11 +93,11 @@ func (c *fileUploaderProtobufClient) Init(ctx context.Context, in *Empty) (*Uplo
 	return out, nil
 }
 
-func (c *fileUploaderProtobufClient) AddChunk(ctx context.Context, in *Chunk) (*Upload, error) {
+func (c *iotaFSProtobufClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "AddChunk")
-	out := new(Upload)
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
+	out := new(FileID)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -119,59 +113,19 @@ func (c *fileUploaderProtobufClient) AddChunk(ctx context.Context, in *Chunk) (*
 	return out, nil
 }
 
-func (c *fileUploaderProtobufClient) Abort(ctx context.Context, in *UploadID) (*Empty, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Abort")
-	out := new(Empty)
-	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
+// ==================
+// IotaFS JSON Client
+// ==================
 
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *fileUploaderProtobufClient) Complete(ctx context.Context, in *File) (*Empty, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Complete")
-	out := new(Empty)
-	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-// ========================
-// FileUploader JSON Client
-// ========================
-
-type fileUploaderJSONClient struct {
+type iotaFSJSONClient struct {
 	client HTTPClient
-	urls   [4]string
+	urls   [2]string
 	opts   twirp.ClientOptions
 }
 
-// NewFileUploaderJSONClient creates a JSON client that implements the FileUploader interface.
+// NewIotaFSJSONClient creates a JSON client that implements the IotaFS interface.
 // It communicates using JSON and can be configured with a custom HTTPClient.
-func NewFileUploaderJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOption) FileUploader {
+func NewIotaFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOption) IotaFS {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -181,26 +135,24 @@ func NewFileUploaderJSONClient(addr string, client HTTPClient, opts ...twirp.Cli
 		o(&clientOpts)
 	}
 
-	prefix := urlBase(addr) + FileUploaderPathPrefix
-	urls := [4]string{
-		prefix + "Init",
-		prefix + "AddChunk",
-		prefix + "Abort",
-		prefix + "Complete",
+	prefix := urlBase(addr) + IotaFSPathPrefix
+	urls := [2]string{
+		prefix + "ChunksExist",
+		prefix + "CreateFile",
 	}
 
-	return &fileUploaderJSONClient{
+	return &iotaFSJSONClient{
 		client: client,
 		urls:   urls,
 		opts:   clientOpts,
 	}
 }
 
-func (c *fileUploaderJSONClient) Init(ctx context.Context, in *Empty) (*UploadID, error) {
+func (c *iotaFSJSONClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Init")
-	out := new(UploadID)
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
+	out := new(ChunksExistResponse)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -216,11 +168,11 @@ func (c *fileUploaderJSONClient) Init(ctx context.Context, in *Empty) (*UploadID
 	return out, nil
 }
 
-func (c *fileUploaderJSONClient) AddChunk(ctx context.Context, in *Chunk) (*Upload, error) {
+func (c *iotaFSJSONClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "AddChunk")
-	out := new(Upload)
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
+	out := new(FileID)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
@@ -236,77 +188,37 @@ func (c *fileUploaderJSONClient) AddChunk(ctx context.Context, in *Chunk) (*Uplo
 	return out, nil
 }
 
-func (c *fileUploaderJSONClient) Abort(ctx context.Context, in *UploadID) (*Empty, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Abort")
-	out := new(Empty)
-	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
+// =====================
+// IotaFS Server Handler
+// =====================
 
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-func (c *fileUploaderJSONClient) Complete(ctx context.Context, in *File) (*Empty, error) {
-	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
-	ctx = ctxsetters.WithMethodName(ctx, "Complete")
-	out := new(Empty)
-	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
-	if err != nil {
-		twerr, ok := err.(twirp.Error)
-		if !ok {
-			twerr = twirp.InternalErrorWith(err)
-		}
-		callClientError(ctx, c.opts.Hooks, twerr)
-		return nil, err
-	}
-
-	callClientResponseReceived(ctx, c.opts.Hooks)
-
-	return out, nil
-}
-
-// ===========================
-// FileUploader Server Handler
-// ===========================
-
-type fileUploaderServer struct {
-	FileUploader
+type iotaFSServer struct {
+	IotaFS
 	hooks *twirp.ServerHooks
 }
 
-func NewFileUploaderServer(svc FileUploader, hooks *twirp.ServerHooks) TwirpServer {
-	return &fileUploaderServer{
-		FileUploader: svc,
-		hooks:        hooks,
+func NewIotaFSServer(svc IotaFS, hooks *twirp.ServerHooks) TwirpServer {
+	return &iotaFSServer{
+		IotaFS: svc,
+		hooks:  hooks,
 	}
 }
 
 // writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
 // If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
-func (s *fileUploaderServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+func (s *iotaFSServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
 	writeError(ctx, resp, err, s.hooks)
 }
 
-// FileUploaderPathPrefix is used for all URL paths on a twirp FileUploader server.
-// Requests are always: POST FileUploaderPathPrefix/method
+// IotaFSPathPrefix is used for all URL paths on a twirp IotaFS server.
+// Requests are always: POST IotaFSPathPrefix/method
 // It can be used in an HTTP mux to route twirp requests along with non-twirp requests on other routes.
-const FileUploaderPathPrefix = "/twirp/upload.FileUploader/"
+const IotaFSPathPrefix = "/twirp/upload.IotaFS/"
 
-func (s *fileUploaderServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	ctx = ctxsetters.WithPackageName(ctx, "upload")
-	ctx = ctxsetters.WithServiceName(ctx, "FileUploader")
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
 	ctx = ctxsetters.WithResponseWriter(ctx, resp)
 
 	var err error
@@ -324,17 +236,11 @@ func (s *fileUploaderServer) ServeHTTP(resp http.ResponseWriter, req *http.Reque
 	}
 
 	switch req.URL.Path {
-	case "/twirp/upload.FileUploader/Init":
-		s.serveInit(ctx, resp, req)
+	case "/twirp/upload.IotaFS/ChunksExist":
+		s.serveChunksExist(ctx, resp, req)
 		return
-	case "/twirp/upload.FileUploader/AddChunk":
-		s.serveAddChunk(ctx, resp, req)
-		return
-	case "/twirp/upload.FileUploader/Abort":
-		s.serveAbort(ctx, resp, req)
-		return
-	case "/twirp/upload.FileUploader/Complete":
-		s.serveComplete(ctx, resp, req)
+	case "/twirp/upload.IotaFS/CreateFile":
+		s.serveCreateFile(ctx, resp, req)
 		return
 	default:
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
@@ -344,7 +250,7 @@ func (s *fileUploaderServer) ServeHTTP(resp http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (s *fileUploaderServer) serveInit(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveChunksExist(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -352,9 +258,9 @@ func (s *fileUploaderServer) serveInit(ctx context.Context, resp http.ResponseWr
 	}
 	switch strings.TrimSpace(strings.ToLower(header[:i])) {
 	case "application/json":
-		s.serveInitJSON(ctx, resp, req)
+		s.serveChunksExistJSON(ctx, resp, req)
 	case "application/protobuf":
-		s.serveInitProtobuf(ctx, resp, req)
+		s.serveChunksExistProtobuf(ctx, resp, req)
 	default:
 		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
 		twerr := badRouteError(msg, req.Method, req.URL.Path)
@@ -362,16 +268,16 @@ func (s *fileUploaderServer) serveInit(ctx context.Context, resp http.ResponseWr
 	}
 }
 
-func (s *fileUploaderServer) serveInitJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveChunksExistJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Init")
+	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
 		return
 	}
 
-	reqContent := new(Empty)
+	reqContent := new(ChunksExistRequest)
 	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
 	if err = unmarshaler.Unmarshal(req.Body, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the json request could not be decoded"))
@@ -379,10 +285,10 @@ func (s *fileUploaderServer) serveInitJSON(ctx context.Context, resp http.Respon
 	}
 
 	// Call service method
-	var respContent *UploadID
+	var respContent *ChunksExistResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Init(ctx, reqContent)
+		respContent, err = s.IotaFS.ChunksExist(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -390,7 +296,7 @@ func (s *fileUploaderServer) serveInitJSON(ctx context.Context, resp http.Respon
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *UploadID and nil error while calling Init. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ChunksExistResponse and nil error while calling ChunksExist. nil responses are not supported"))
 		return
 	}
 
@@ -417,9 +323,9 @@ func (s *fileUploaderServer) serveInitJSON(ctx context.Context, resp http.Respon
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *fileUploaderServer) serveInitProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveChunksExistProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Init")
+	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -431,17 +337,17 @@ func (s *fileUploaderServer) serveInitProtobuf(ctx context.Context, resp http.Re
 		s.writeError(ctx, resp, wrapInternal(err, "failed to read request body"))
 		return
 	}
-	reqContent := new(Empty)
+	reqContent := new(ChunksExistRequest)
 	if err = proto.Unmarshal(buf, reqContent); err != nil {
 		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
 		return
 	}
 
 	// Call service method
-	var respContent *UploadID
+	var respContent *ChunksExistResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Init(ctx, reqContent)
+		respContent, err = s.IotaFS.ChunksExist(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -449,7 +355,7 @@ func (s *fileUploaderServer) serveInitProtobuf(ctx context.Context, resp http.Re
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *UploadID and nil error while calling Init. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *ChunksExistResponse and nil error while calling ChunksExist. nil responses are not supported"))
 		return
 	}
 
@@ -473,7 +379,7 @@ func (s *fileUploaderServer) serveInitProtobuf(ctx context.Context, resp http.Re
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *fileUploaderServer) serveAddChunk(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveCreateFile(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -481,9 +387,9 @@ func (s *fileUploaderServer) serveAddChunk(ctx context.Context, resp http.Respon
 	}
 	switch strings.TrimSpace(strings.ToLower(header[:i])) {
 	case "application/json":
-		s.serveAddChunkJSON(ctx, resp, req)
+		s.serveCreateFileJSON(ctx, resp, req)
 	case "application/protobuf":
-		s.serveAddChunkProtobuf(ctx, resp, req)
+		s.serveCreateFileProtobuf(ctx, resp, req)
 	default:
 		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
 		twerr := badRouteError(msg, req.Method, req.URL.Path)
@@ -491,267 +397,9 @@ func (s *fileUploaderServer) serveAddChunk(ctx context.Context, resp http.Respon
 	}
 }
 
-func (s *fileUploaderServer) serveAddChunkJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveCreateFileJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "AddChunk")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	reqContent := new(Chunk)
-	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
-	if err = unmarshaler.Unmarshal(req.Body, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the json request could not be decoded"))
-		return
-	}
-
-	// Call service method
-	var respContent *Upload
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.AddChunk(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Upload and nil error while calling AddChunk. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	var buf bytes.Buffer
-	marshaler := &jsonpb.Marshaler{OrigName: true}
-	if err = marshaler.Marshal(&buf, respContent); err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	respBytes := buf.Bytes()
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *fileUploaderServer) serveAddChunkProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "AddChunk")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	buf, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to read request body"))
-		return
-	}
-	reqContent := new(Chunk)
-	if err = proto.Unmarshal(buf, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
-		return
-	}
-
-	// Call service method
-	var respContent *Upload
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.AddChunk(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Upload and nil error while calling AddChunk. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	respBytes, err := proto.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/protobuf")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *fileUploaderServer) serveAbort(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	header := req.Header.Get("Content-Type")
-	i := strings.Index(header, ";")
-	if i == -1 {
-		i = len(header)
-	}
-	switch strings.TrimSpace(strings.ToLower(header[:i])) {
-	case "application/json":
-		s.serveAbortJSON(ctx, resp, req)
-	case "application/protobuf":
-		s.serveAbortProtobuf(ctx, resp, req)
-	default:
-		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
-		twerr := badRouteError(msg, req.Method, req.URL.Path)
-		s.writeError(ctx, resp, twerr)
-	}
-}
-
-func (s *fileUploaderServer) serveAbortJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Abort")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	reqContent := new(UploadID)
-	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
-	if err = unmarshaler.Unmarshal(req.Body, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the json request could not be decoded"))
-		return
-	}
-
-	// Call service method
-	var respContent *Empty
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Abort(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Empty and nil error while calling Abort. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	var buf bytes.Buffer
-	marshaler := &jsonpb.Marshaler{OrigName: true}
-	if err = marshaler.Marshal(&buf, respContent); err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	respBytes := buf.Bytes()
-	resp.Header().Set("Content-Type", "application/json")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *fileUploaderServer) serveAbortProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Abort")
-	ctx, err = callRequestRouted(ctx, s.hooks)
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-
-	buf, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to read request body"))
-		return
-	}
-	reqContent := new(UploadID)
-	if err = proto.Unmarshal(buf, reqContent); err != nil {
-		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
-		return
-	}
-
-	// Call service method
-	var respContent *Empty
-	func() {
-		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Abort(ctx, reqContent)
-	}()
-
-	if err != nil {
-		s.writeError(ctx, resp, err)
-		return
-	}
-	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Empty and nil error while calling Abort. nil responses are not supported"))
-		return
-	}
-
-	ctx = callResponsePrepared(ctx, s.hooks)
-
-	respBytes, err := proto.Marshal(respContent)
-	if err != nil {
-		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
-		return
-	}
-
-	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
-	resp.Header().Set("Content-Type", "application/protobuf")
-	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
-	resp.WriteHeader(http.StatusOK)
-	if n, err := resp.Write(respBytes); err != nil {
-		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
-		twerr := twirp.NewError(twirp.Unknown, msg)
-		callError(ctx, s.hooks, twerr)
-	}
-	callResponseSent(ctx, s.hooks)
-}
-
-func (s *fileUploaderServer) serveComplete(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	header := req.Header.Get("Content-Type")
-	i := strings.Index(header, ";")
-	if i == -1 {
-		i = len(header)
-	}
-	switch strings.TrimSpace(strings.ToLower(header[:i])) {
-	case "application/json":
-		s.serveCompleteJSON(ctx, resp, req)
-	case "application/protobuf":
-		s.serveCompleteProtobuf(ctx, resp, req)
-	default:
-		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
-		twerr := badRouteError(msg, req.Method, req.URL.Path)
-		s.writeError(ctx, resp, twerr)
-	}
-}
-
-func (s *fileUploaderServer) serveCompleteJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
-	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Complete")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -766,10 +414,10 @@ func (s *fileUploaderServer) serveCompleteJSON(ctx context.Context, resp http.Re
 	}
 
 	// Call service method
-	var respContent *Empty
+	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Complete(ctx, reqContent)
+		respContent, err = s.IotaFS.CreateFile(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -777,7 +425,7 @@ func (s *fileUploaderServer) serveCompleteJSON(ctx context.Context, resp http.Re
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Empty and nil error while calling Complete. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *FileID and nil error while calling CreateFile. nil responses are not supported"))
 		return
 	}
 
@@ -804,9 +452,9 @@ func (s *fileUploaderServer) serveCompleteJSON(ctx context.Context, resp http.Re
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *fileUploaderServer) serveCompleteProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *iotaFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
-	ctx = ctxsetters.WithMethodName(ctx, "Complete")
+	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	ctx, err = callRequestRouted(ctx, s.hooks)
 	if err != nil {
 		s.writeError(ctx, resp, err)
@@ -825,10 +473,10 @@ func (s *fileUploaderServer) serveCompleteProtobuf(ctx context.Context, resp htt
 	}
 
 	// Call service method
-	var respContent *Empty
+	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.FileUploader.Complete(ctx, reqContent)
+		respContent, err = s.IotaFS.CreateFile(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -836,7 +484,7 @@ func (s *fileUploaderServer) serveCompleteProtobuf(ctx context.Context, resp htt
 		return
 	}
 	if respContent == nil {
-		s.writeError(ctx, resp, twirp.InternalError("received a nil *Empty and nil error while calling Complete. nil responses are not supported"))
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *FileID and nil error while calling CreateFile. nil responses are not supported"))
 		return
 	}
 
@@ -860,16 +508,16 @@ func (s *fileUploaderServer) serveCompleteProtobuf(ctx context.Context, resp htt
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *fileUploaderServer) ServiceDescriptor() ([]byte, int) {
+func (s *iotaFSServer) ServiceDescriptor() ([]byte, int) {
 	return twirpFileDescriptor0, 0
 }
 
-func (s *fileUploaderServer) ProtocGenTwirpVersion() string {
+func (s *iotaFSServer) ProtocGenTwirpVersion() string {
 	return "v5.10.1"
 }
 
-func (s *fileUploaderServer) PathPrefix() string {
-	return FileUploaderPathPrefix
+func (s *iotaFSServer) PathPrefix() string {
+	return IotaFSPathPrefix
 }
 
 // =====
@@ -1385,24 +1033,23 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 304 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x7c, 0x52, 0xc1, 0x4a, 0xc3, 0x40,
-	0x14, 0x64, 0xdb, 0xa4, 0x6e, 0x1f, 0xb1, 0x94, 0x87, 0x94, 0x25, 0x5e, 0x42, 0x3c, 0x34, 0x5e,
-	0x5a, 0xd0, 0x83, 0x17, 0x2f, 0xb5, 0x2a, 0xf4, 0x1a, 0xf0, 0xe2, 0x45, 0x52, 0x77, 0xc5, 0xc5,
-	0x64, 0x13, 0x93, 0xcd, 0x41, 0xf1, 0xb7, 0xfc, 0x3f, 0xc9, 0x6e, 0x12, 0x48, 0x15, 0x4f, 0x79,
-	0x33, 0x6f, 0x32, 0xf3, 0x18, 0x16, 0xce, 0xa4, 0xd2, 0xa2, 0x54, 0x49, 0xba, 0x2e, 0xca, 0x5c,
-	0xe7, 0xd5, 0xba, 0x2e, 0xd2, 0x3c, 0xe1, 0xed, 0x67, 0x65, 0x48, 0x9c, 0x58, 0x14, 0x5e, 0x81,
-	0x73, 0x2f, 0x53, 0x81, 0xa7, 0x30, 0xb5, 0xcc, 0x93, 0xe4, 0x8c, 0x04, 0x24, 0x9a, 0xc6, 0xd4,
-	0x12, 0x3b, 0x8e, 0x08, 0x8e, 0x4a, 0x32, 0xc1, 0x46, 0x86, 0x37, 0x73, 0xe8, 0x03, 0x7d, 0xb0,
-	0xfb, 0x5b, 0x9c, 0xc1, 0xa8, 0xff, 0x6b, 0x24, 0x79, 0xf8, 0x05, 0xee, 0xf6, 0xb5, 0x56, 0x6f,
-	0xff, 0xbb, 0xfa, 0x40, 0x2b, 0xf1, 0x5e, 0x0b, 0xf5, 0x6c, 0x9d, 0x9d, 0xb8, 0xc7, 0x4d, 0x62,
-	0x25, 0x3f, 0x05, 0x1b, 0x1b, 0xde, 0xcc, 0x38, 0x87, 0x71, 0x55, 0x67, 0xcc, 0x09, 0x48, 0xe4,
-	0xc5, 0xcd, 0x88, 0x27, 0xe0, 0xbe, 0x48, 0x95, 0xa4, 0xcc, 0x0d, 0x48, 0x44, 0x63, 0x0b, 0xc2,
-	0x6b, 0x98, 0xd8, 0xcb, 0x06, 0x09, 0xe4, 0x20, 0x61, 0x01, 0x6d, 0x05, 0x26, 0x9b, 0xc6, 0x5d,
-	0x21, 0x47, 0xe0, 0xde, 0x65, 0x85, 0xfe, 0xb8, 0xf8, 0x26, 0xe0, 0x35, 0xd5, 0x58, 0x2f, 0x51,
-	0xe2, 0x12, 0x9c, 0x9d, 0x92, 0x1a, 0x8f, 0x57, 0x6d, 0x93, 0x46, 0xe7, 0xcf, 0x3b, 0xd8, 0xd7,
-	0x71, 0x0e, 0x74, 0xc3, 0xb9, 0x6d, 0xa0, 0x17, 0x1b, 0xe8, 0xcf, 0x86, 0x62, 0x8c, 0xc0, 0xdd,
-	0xec, 0xf3, 0x52, 0xe3, 0x2f, 0x17, 0x7f, 0x18, 0x83, 0x4b, 0xa0, 0xdb, 0x3c, 0x2b, 0x52, 0xa1,
-	0x05, 0x7a, 0xdd, 0xaa, 0xb9, 0xef, 0x40, 0x78, 0xc3, 0x1e, 0x17, 0x7f, 0x3f, 0x80, 0xfd, 0xc4,
-	0xc0, 0xcb, 0x9f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x0e, 0x8d, 0xab, 0x5d, 0x21, 0x02, 0x00, 0x00,
+	// 278 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x51, 0x5d, 0x4b, 0xc3, 0x30,
+	0x14, 0xa5, 0x1f, 0x86, 0x79, 0x57, 0x45, 0x22, 0x8c, 0x50, 0x5f, 0x4a, 0x45, 0x28, 0x82, 0x1d,
+	0xcc, 0x5f, 0xa0, 0x9b, 0x85, 0xbe, 0xc6, 0x37, 0xdf, 0xea, 0x0c, 0x58, 0x6c, 0xd3, 0xda, 0x24,
+	0x20, 0xe2, 0x8f, 0x97, 0xdc, 0x66, 0x63, 0x85, 0x3e, 0xe5, 0x9c, 0x73, 0x0f, 0x37, 0x27, 0x27,
+	0x70, 0x5b, 0x4b, 0x2d, 0x06, 0x59, 0x35, 0xeb, 0x7e, 0xe8, 0x74, 0xa7, 0xd6, 0xa6, 0x6f, 0xba,
+	0xea, 0xc3, 0x1d, 0x39, 0x8a, 0x94, 0x8c, 0x2c, 0xcd, 0x80, 0x6e, 0x3f, 0x8d, 0xfc, 0x52, 0x2f,
+	0x3f, 0xb5, 0xd2, 0x5c, 0x7c, 0x1b, 0xa1, 0x34, 0xa5, 0x10, 0x2a, 0xd3, 0x2a, 0xe6, 0x25, 0x41,
+	0x16, 0x71, 0xc4, 0xe9, 0x03, 0x5c, 0x4f, 0x9c, 0xaa, 0xef, 0xa4, 0x12, 0x74, 0x05, 0x44, 0x58,
+	0x61, 0x34, 0x2f, 0xb8, 0x63, 0xe9, 0x13, 0x84, 0x45, 0xdd, 0x08, 0xbb, 0x4a, 0x56, 0xad, 0x60,
+	0x5e, 0xe2, 0x65, 0xe7, 0x1c, 0x31, 0xbd, 0x03, 0xb2, 0xc7, 0x55, 0xcc, 0x4f, 0x82, 0x6c, 0xb9,
+	0xb9, 0xc8, 0x5d, 0x36, 0xbc, 0x80, 0xbb, 0x61, 0x5a, 0xc2, 0x19, 0x0a, 0x34, 0x86, 0x85, 0xb2,
+	0xc9, 0xe4, 0x7e, 0xdc, 0x13, 0xf2, 0x23, 0xc7, 0xa8, 0xf5, 0xaf, 0x60, 0x3e, 0xea, 0x88, 0xe9,
+	0x15, 0x04, 0xca, 0xb4, 0x2c, 0x48, 0xbc, 0x2c, 0xe2, 0x16, 0xa6, 0x39, 0x10, 0x9b, 0xa6, 0xdc,
+	0xcd, 0xe6, 0x71, 0x7e, 0xff, 0xe8, 0xdf, 0xfc, 0x01, 0x29, 0x3b, 0x5d, 0x15, 0xaf, 0xb4, 0x80,
+	0xe5, 0xc9, 0xb3, 0x69, 0x3c, 0x89, 0x3a, 0x69, 0x2d, 0xbe, 0x99, 0x9d, 0xb9, 0x9e, 0xee, 0x01,
+	0xb6, 0x83, 0xa8, 0xb4, 0xc0, 0x56, 0xa2, 0x83, 0xd5, 0xb2, 0xf8, 0xf2, 0x94, 0x95, 0xbb, 0x67,
+	0xf6, 0xb6, 0x9a, 0xff, 0xc3, 0x77, 0x82, 0xf4, 0xf1, 0x3f, 0x00, 0x00, 0xff, 0xff, 0x84, 0x22,
+	0xe5, 0x4c, 0xe4, 0x01, 0x00, 0x00,
 }

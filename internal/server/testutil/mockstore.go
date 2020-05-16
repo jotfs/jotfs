@@ -4,8 +4,7 @@ import "github.com/iotafs/iotafs/internal/store"
 
 type MockStore struct{}
 
-type discard struct {
-}
+type discard struct{}
 
 func (w discard) Write(p []byte) (int, error) {
 	return len(p), nil
@@ -19,7 +18,7 @@ func (w discard) Cancel() error {
 	return nil
 }
 
-func (s MockStore) NewFile(bucket string, key string) store.WriteCanceller {
+func (s MockStore) NewFile(bucket string, key string) store.File {
 	return discard{}
 }
 

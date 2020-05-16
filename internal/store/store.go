@@ -5,18 +5,17 @@ import (
 	"time"
 )
 
-// WriteCanceller is a WriteCloser with the ability to cancel all write operations before
+// File is a WriteCloser with the ability to cancel all write operations before
 // it is closed.
-type WriteCanceller interface {
+type File interface {
 	io.WriteCloser
 	Cancel() error
 }
 
 // Store is an interface to an object store.
 type Store interface {
-	// NewFile initializes a new file. The writer must be successfully closed before the
-	// file is created.
-	NewFile(bucket string, key string) WriteCanceller
+	// NewFile initializes a new file.
+	NewFile(bucket string, key string) File
 
 	// Copy makes a copy of a file. Returns an error if the file does not exist.
 	Copy(bucket string, from string, to string) error

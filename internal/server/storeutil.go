@@ -3,13 +3,13 @@ package server
 import "github.com/iotafs/iotafs/internal/sum"
 
 func PackfileKey(s sum.Sum) string {
-	return "packfile/" + s.AsHex()
+	return s.AsHex() + ".pack"
 }
 
 func PackIndexKey(s sum.Sum) string {
-	return "packindex/" + s.AsHex()
+	return s.AsHex() + ".index"
 }
 
 func FileKey(s sum.Sum) string {
-	return "file/" + s.AsHex()
+	return s.AsHex() + ".file"
 }

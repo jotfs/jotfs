@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/log"
@@ -263,9 +262,8 @@ func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error 
 }
 
 func insertFileVersion(tx *sql.Tx, fileID int64, file object.File, sum sum.Sum) (int64, error) {
-	createdAt := time.Now().UnixNano()
 	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks", "sum"})
-	res, err := tx.Exec(q, fileID, createdAt, file.Size(), len(file.Chunks), sum[:])
+	res, err := tx.Exec(q, fileID, file.CreatedAt, file.Size(), len(file.Chunks), sum[:])
 	if err != nil {
 		return 0, err
 	}

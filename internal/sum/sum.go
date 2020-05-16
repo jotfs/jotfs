@@ -1,6 +1,7 @@
 package sum
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -22,6 +23,15 @@ func FromBytes(b []byte) (Sum, error) {
 	var s Sum
 	copy(s[:], b)
 	return s, nil
+}
+
+// FromBase64 converts a base64 encoded string to a Sum.
+func FromBase64(s string) (Sum, error) {
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return Sum{}, err
+	}
+	return FromBytes(b)
 }
 
 // Compute returns the checksum of a byte slice.

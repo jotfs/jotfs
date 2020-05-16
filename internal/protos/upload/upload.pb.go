@@ -25,19 +25,113 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
+type ChunksExistRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Sums [][]byte `protobuf:"bytes,1,rep,name=sums,proto3" json:"sums,omitempty"`
+}
+
+func (x *ChunksExistRequest) Reset() {
+	*x = ChunksExistRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_protos_upload_upload_proto_msgTypes[0]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ChunksExistRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChunksExistRequest) ProtoMessage() {}
+
+func (x *ChunksExistRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_protos_upload_upload_proto_msgTypes[0]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChunksExistRequest.ProtoReflect.Descriptor instead.
+func (*ChunksExistRequest) Descriptor() ([]byte, []int) {
+	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ChunksExistRequest) GetSums() [][]byte {
+	if x != nil {
+		return x.Sums
+	}
+	return nil
+}
+
+type ChunksExistResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Exists []bool `protobuf:"varint,1,rep,packed,name=exists,proto3" json:"exists,omitempty"`
+}
+
+func (x *ChunksExistResponse) Reset() {
+	*x = ChunksExistResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_protos_upload_upload_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ChunksExistResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChunksExistResponse) ProtoMessage() {}
+
+func (x *ChunksExistResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_protos_upload_upload_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChunksExistResponse.ProtoReflect.Descriptor instead.
+func (*ChunksExistResponse) Descriptor() ([]byte, []int) {
+	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ChunksExistResponse) GetExists() []bool {
+	if x != nil {
+		return x.Exists
+	}
+	return nil
+}
+
 type File struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	Name     string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Name   string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Chunks []*Chunk `protobuf:"bytes,2,rep,name=chunks,proto3" json:"chunks,omitempty"`
 }
 
 func (x *File) Reset() {
 	*x = File{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_protos_upload_upload_proto_msgTypes[0]
+		mi := &file_internal_protos_upload_upload_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -50,7 +144,7 @@ func (x *File) String() string {
 func (*File) ProtoMessage() {}
 
 func (x *File) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_protos_upload_upload_proto_msgTypes[0]
+	mi := &file_internal_protos_upload_upload_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63,14 +157,7 @@ func (x *File) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use File.ProtoReflect.Descriptor instead.
 func (*File) Descriptor() ([]byte, []int) {
-	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *File) GetUploadId() string {
-	if x != nil {
-		return x.UploadId
-	}
-	return ""
+	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *File) GetName() string {
@@ -80,51 +167,11 @@ func (x *File) GetName() string {
 	return ""
 }
 
-type UploadID struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-}
-
-func (x *UploadID) Reset() {
-	*x = UploadID{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_protos_upload_upload_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *UploadID) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UploadID) ProtoMessage() {}
-
-func (x *UploadID) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_protos_upload_upload_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UploadID.ProtoReflect.Descriptor instead.
-func (*UploadID) Descriptor() ([]byte, []int) {
-	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *UploadID) GetId() string {
+func (x *File) GetChunks() []*Chunk {
 	if x != nil {
-		return x.Id
+		return x.Chunks
 	}
-	return ""
+	return nil
 }
 
 type Chunk struct {
@@ -132,17 +179,15 @@ type Chunk struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	Sequence uint64 `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Size     uint64 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
-	Sum      []byte `protobuf:"bytes,4,opt,name=sum,proto3" json:"sum,omitempty"`
-	Final    bool   `protobuf:"varint,5,opt,name=final,proto3" json:"final,omitempty"`
+	Sequence uint64 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Size     uint64 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
+	Sum      []byte `protobuf:"bytes,3,opt,name=sum,proto3" json:"sum,omitempty"`
 }
 
 func (x *Chunk) Reset() {
 	*x = Chunk{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_protos_upload_upload_proto_msgTypes[2]
+		mi := &file_internal_protos_upload_upload_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -155,7 +200,7 @@ func (x *Chunk) String() string {
 func (*Chunk) ProtoMessage() {}
 
 func (x *Chunk) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_protos_upload_upload_proto_msgTypes[2]
+	mi := &file_internal_protos_upload_upload_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -168,14 +213,7 @@ func (x *Chunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Chunk.ProtoReflect.Descriptor instead.
 func (*Chunk) Descriptor() ([]byte, []int) {
-	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *Chunk) GetUploadId() string {
-	if x != nil {
-		return x.UploadId
-	}
-	return ""
+	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Chunk) GetSequence() uint64 {
@@ -199,76 +237,17 @@ func (x *Chunk) GetSum() []byte {
 	return nil
 }
 
-func (x *Chunk) GetFinal() bool {
-	if x != nil {
-		return x.Final
-	}
-	return false
-}
-
-type Upload struct {
+type FileID struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Sequence uint64 `protobuf:"varint,1,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Upload   bool   `protobuf:"varint,2,opt,name=upload,proto3" json:"upload,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Sum  []byte `protobuf:"bytes,2,opt,name=sum,proto3" json:"sum,omitempty"`
 }
 
-func (x *Upload) Reset() {
-	*x = Upload{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_protos_upload_upload_proto_msgTypes[3]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Upload) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Upload) ProtoMessage() {}
-
-func (x *Upload) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_protos_upload_upload_proto_msgTypes[3]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Upload.ProtoReflect.Descriptor instead.
-func (*Upload) Descriptor() ([]byte, []int) {
-	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Upload) GetSequence() uint64 {
-	if x != nil {
-		return x.Sequence
-	}
-	return 0
-}
-
-func (x *Upload) GetUpload() bool {
-	if x != nil {
-		return x.Upload
-	}
-	return false
-}
-
-type Empty struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-}
-
-func (x *Empty) Reset() {
-	*x = Empty{}
+func (x *FileID) Reset() {
+	*x = FileID{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_internal_protos_upload_upload_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -276,13 +255,13 @@ func (x *Empty) Reset() {
 	}
 }
 
-func (x *Empty) String() string {
+func (x *FileID) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Empty) ProtoMessage() {}
+func (*FileID) ProtoMessage() {}
 
-func (x *Empty) ProtoReflect() protoreflect.Message {
+func (x *FileID) ProtoReflect() protoreflect.Message {
 	mi := &file_internal_protos_upload_upload_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -294,9 +273,23 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Empty.ProtoReflect.Descriptor instead.
-func (*Empty) Descriptor() ([]byte, []int) {
+// Deprecated: Use FileID.ProtoReflect.Descriptor instead.
+func (*FileID) Descriptor() ([]byte, []int) {
 	return file_internal_protos_upload_upload_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FileID) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *FileID) GetSum() []byte {
+	if x != nil {
+		return x.Sum
+	}
+	return nil
 }
 
 var File_internal_protos_upload_upload_proto protoreflect.FileDescriptor
@@ -304,39 +297,35 @@ var File_internal_protos_upload_upload_proto protoreflect.FileDescriptor
 var file_internal_protos_upload_upload_proto_rawDesc = []byte{
 	0x0a, 0x23, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f,
 	0x73, 0x2f, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2f, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x37, 0x0a,
-	0x04, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x5f,
-	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x1a, 0x0a, 0x08, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x49, 0x44, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02,
-	0x69, 0x64, 0x22, 0x7c, 0x0a, 0x05, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x12, 0x1b, 0x0a, 0x09, 0x75,
-	0x70, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08,
-	0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x49, 0x64, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65, 0x71, 0x75,
-	0x65, 0x6e, 0x63, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x73, 0x65, 0x71, 0x75,
-	0x65, 0x6e, 0x63, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x04, 0x52, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x75, 0x6d, 0x18,
-	0x04, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x03, 0x73, 0x75, 0x6d, 0x12, 0x14, 0x0a, 0x05, 0x66, 0x69,
-	0x6e, 0x61, 0x6c, 0x18, 0x05, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x66, 0x69, 0x6e, 0x61, 0x6c,
-	0x22, 0x3c, 0x0a, 0x06, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65,
-	0x71, 0x75, 0x65, 0x6e, 0x63, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x73, 0x65,
-	0x71, 0x75, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x07,
-	0x0a, 0x05, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x32, 0xb5, 0x01, 0x0a, 0x0c, 0x46, 0x69, 0x6c, 0x65,
-	0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x65, 0x72, 0x12, 0x27, 0x0a, 0x04, 0x49, 0x6e, 0x69, 0x74,
-	0x12, 0x0d, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a,
-	0x10, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x49,
-	0x44, 0x12, 0x29, 0x0a, 0x08, 0x41, 0x64, 0x64, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x12, 0x0d, 0x2e,
-	0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x1a, 0x0e, 0x2e, 0x75,
-	0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x55, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x12, 0x28, 0x0a, 0x05,
-	0x41, 0x62, 0x6f, 0x72, 0x74, 0x12, 0x10, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x55,
-	0x70, 0x6c, 0x6f, 0x61, 0x64, 0x49, 0x44, 0x1a, 0x0d, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64,
-	0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x27, 0x0a, 0x08, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65,
-	0x74, 0x65, 0x12, 0x0c, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x46, 0x69, 0x6c, 0x65,
-	0x1a, 0x0d, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x42,
-	0x18, 0x5a, 0x16, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x73, 0x2f, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x06, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x22, 0x28, 0x0a,
+	0x12, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x45, 0x78, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x75, 0x6d, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x0c, 0x52, 0x04, 0x73, 0x75, 0x6d, 0x73, 0x22, 0x2d, 0x0a, 0x13, 0x43, 0x68, 0x75, 0x6e, 0x6b,
+	0x73, 0x45, 0x78, 0x69, 0x73, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16,
+	0x0a, 0x06, 0x65, 0x78, 0x69, 0x73, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x08, 0x52, 0x06,
+	0x65, 0x78, 0x69, 0x73, 0x74, 0x73, 0x22, 0x41, 0x0a, 0x04, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x12,
+	0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x12, 0x25, 0x0a, 0x06, 0x63, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x18, 0x02, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x0d, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x43, 0x68, 0x75, 0x6e,
+	0x6b, 0x52, 0x06, 0x63, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x22, 0x49, 0x0a, 0x05, 0x43, 0x68, 0x75,
+	0x6e, 0x6b, 0x12, 0x1a, 0x0a, 0x08, 0x73, 0x65, 0x71, 0x75, 0x65, 0x6e, 0x63, 0x65, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x73, 0x65, 0x71, 0x75, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x12,
+	0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x04, 0x73, 0x69,
+	0x7a, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x75, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x03, 0x73, 0x75, 0x6d, 0x22, 0x2e, 0x0a, 0x06, 0x46, 0x69, 0x6c, 0x65, 0x49, 0x44, 0x12, 0x12,
+	0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61,
+	0x6d, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x73, 0x75, 0x6d, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52,
+	0x03, 0x73, 0x75, 0x6d, 0x32, 0x7c, 0x0a, 0x06, 0x49, 0x6f, 0x74, 0x61, 0x46, 0x53, 0x12, 0x46,
+	0x0a, 0x0b, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x45, 0x78, 0x69, 0x73, 0x74, 0x12, 0x1a, 0x2e,
+	0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x45, 0x78, 0x69,
+	0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x75, 0x70, 0x6c, 0x6f,
+	0x61, 0x64, 0x2e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x45, 0x78, 0x69, 0x73, 0x74, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2a, 0x0a, 0x0a, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65,
+	0x46, 0x69, 0x6c, 0x65, 0x12, 0x0c, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x46, 0x69,
+	0x6c, 0x65, 0x1a, 0x0e, 0x2e, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x2e, 0x46, 0x69, 0x6c, 0x65,
+	0x49, 0x44, 0x42, 0x18, 0x5a, 0x16, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2f, 0x75, 0x70, 0x6c, 0x6f, 0x61, 0x64, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -353,26 +342,23 @@ func file_internal_protos_upload_upload_proto_rawDescGZIP() []byte {
 
 var file_internal_protos_upload_upload_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_internal_protos_upload_upload_proto_goTypes = []interface{}{
-	(*File)(nil),     // 0: upload.File
-	(*UploadID)(nil), // 1: upload.UploadID
-	(*Chunk)(nil),    // 2: upload.Chunk
-	(*Upload)(nil),   // 3: upload.Upload
-	(*Empty)(nil),    // 4: upload.Empty
+	(*ChunksExistRequest)(nil),  // 0: upload.ChunksExistRequest
+	(*ChunksExistResponse)(nil), // 1: upload.ChunksExistResponse
+	(*File)(nil),                // 2: upload.File
+	(*Chunk)(nil),               // 3: upload.Chunk
+	(*FileID)(nil),              // 4: upload.FileID
 }
 var file_internal_protos_upload_upload_proto_depIdxs = []int32{
-	4, // 0: upload.FileUploader.Init:input_type -> upload.Empty
-	2, // 1: upload.FileUploader.AddChunk:input_type -> upload.Chunk
-	1, // 2: upload.FileUploader.Abort:input_type -> upload.UploadID
-	0, // 3: upload.FileUploader.Complete:input_type -> upload.File
-	1, // 4: upload.FileUploader.Init:output_type -> upload.UploadID
-	3, // 5: upload.FileUploader.AddChunk:output_type -> upload.Upload
-	4, // 6: upload.FileUploader.Abort:output_type -> upload.Empty
-	4, // 7: upload.FileUploader.Complete:output_type -> upload.Empty
-	4, // [4:8] is the sub-list for method output_type
-	0, // [0:4] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	3, // 0: upload.File.chunks:type_name -> upload.Chunk
+	0, // 1: upload.IotaFS.ChunksExist:input_type -> upload.ChunksExistRequest
+	2, // 2: upload.IotaFS.CreateFile:input_type -> upload.File
+	1, // 3: upload.IotaFS.ChunksExist:output_type -> upload.ChunksExistResponse
+	4, // 4: upload.IotaFS.CreateFile:output_type -> upload.FileID
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_internal_protos_upload_upload_proto_init() }
@@ -382,7 +368,7 @@ func file_internal_protos_upload_upload_proto_init() {
 	}
 	if !protoimpl.UnsafeEnabled {
 		file_internal_protos_upload_upload_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*File); i {
+			switch v := v.(*ChunksExistRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -394,7 +380,7 @@ func file_internal_protos_upload_upload_proto_init() {
 			}
 		}
 		file_internal_protos_upload_upload_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*UploadID); i {
+			switch v := v.(*ChunksExistResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -406,7 +392,7 @@ func file_internal_protos_upload_upload_proto_init() {
 			}
 		}
 		file_internal_protos_upload_upload_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Chunk); i {
+			switch v := v.(*File); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -418,7 +404,7 @@ func file_internal_protos_upload_upload_proto_init() {
 			}
 		}
 		file_internal_protos_upload_upload_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Upload); i {
+			switch v := v.(*Chunk); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -430,7 +416,7 @@ func file_internal_protos_upload_upload_proto_init() {
 			}
 		}
 		file_internal_protos_upload_upload_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Empty); i {
+			switch v := v.(*FileID); i {
 			case 0:
 				return &v.state
 			case 1:

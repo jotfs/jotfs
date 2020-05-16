@@ -3,35 +3,65 @@ syntax = "proto3";
 package upload;
 option go_package = "internal/protos/upload";
 
-service FileUploader {
-    rpc Init(Empty) returns (UploadID);
-    rpc AddChunk(Chunk) returns (Upload);
-    rpc Abort(UploadID) returns (Empty);
-    rpc Complete(File) returns (Empty);
+service IotaFS {
+    rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
+    rpc CreateFile(File) returns (FileID);
+}
+
+message ChunksExistRequest {
+    repeated bytes sums = 1;
+}
+
+message ChunksExistResponse {
+    repeated bool exists = 1;
 }
 
 message File {
-    string upload_id = 1;
-    string name = 2;
-}
-
-message UploadID {
-    string id = 1;
+    string name = 1;
+    repeated Chunk chunks = 2;
 }
 
 message Chunk {
-    string upload_id = 1;
-    uint64 sequence = 2;
-    uint64 size = 3;
-    bytes sum = 4;
-    bool final = 5;
-}
-
-message Upload {
     uint64 sequence = 1;
-    bool upload = 2;
+    uint64 size = 2;
+    bytes sum = 3;
 }
 
+message FileID {
+    string name = 1;
+    bytes sum = 2;
+}
 
-message Empty {}
+// message Empty {}
+
+// service FileUploader {
+//     rpc Init(Empty) returns (UploadID);
+//     rpc AddChunk(Chunk) returns (Upload);
+//     rpc Abort(UploadID) returns (Empty);
+//     rpc Complete(File) returns (Empty);
+// }
+
+// message File {
+//     string upload_id = 1;
+//     string name = 2;
+// }
+
+// message UploadID {
+//     string id = 1;
+// }
+
+// message Chunk {
+//     string upload_id = 1;
+//     uint64 sequence = 2;
+//     uint64 size = 3;
+//     bytes sum = 4;
+//     bool final = 5;
+// }
+
+// message Upload {
+//     uint64 sequence = 1;
+//     bool upload = 2;
+// }
+
+
 
