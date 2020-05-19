@@ -19,7 +19,7 @@ type File struct {
 	Chunks    []Chunk
 }
 
-// Chunk stores the inforamtion for a chunk within a file object.
+// Chunk stores the information for a chunk within a file object.
 type Chunk struct {
 	Sequence uint64
 	Size     uint64

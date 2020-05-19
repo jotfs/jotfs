@@ -15,7 +15,6 @@ import (
 type PackfileBuilder struct {
 	w      *countingWriter
 	idx    []BlockInfo
-	seen   map[sum.Sum]bool
 	seq    uint64
 	closed bool
 	hash   *sum.Hash
@@ -31,32 +30,27 @@ func NewPackfileBuilder(w io.Writer) (*PackfileBuilder, error) {
 	w = io.MultiWriter(w, hash)
 	cw := countingWriter{w, 0}
 
-	// Write the object type
-	if _, err := cw.Write([]byte{PackfileObject}); err != nil {
-		return nil, err
-	}
-
 	b := PackfileBuilder{
-		&cw,
-		make([]BlockInfo, 0),
-		make(map[sum.Sum]bool),
-		0,
-		false,
-		hash,
+		w:      &cw,
+		idx:    make([]BlockInfo, 0),
+		seq:    0,
+		closed: false,
+		hash:   hash,
 	}
 	return &b, nil
 }
 
-// Append writes a chunk of data to packfile owned by the builder, and returns the
-// chunk checksum.
-func (b *PackfileBuilder) Append(data []byte, mode compress.Mode) (sum.Sum, error) {
-	if b.closed {
-		return sum.Sum{}, errors.New("packfile builder is closed")
+// Append writes a chunk of data to packfile owned by the builder.
+func (b *PackfileBuilder) Append(data []byte, s sum.Sum, mode compress.Mode) error {
+	if len(b.idx) == 0 {
+		// Write the object type
+		if _, err := b.w.Write([]byte{PackfileObject}); err != nil {
+			return err
+		}
+
 	}
-	s := sum.Compute(data)
-	if _, ok := b.seen[s]; ok {
-		// The packfile already contains this chunk
-		return s, nil
+	if b.closed {
+		return errors.New("packfile builder is closed")
 	}
 
 	// Write the block, with compressed chunk data, to the packfile
@@ -65,10 +59,10 @@ func (b *PackfileBuilder) Append(data []byte, mode compress.Mode) (sum.Sum, erro
 	offset := b.w.bytesWritten // Need to get offset before write
 	block, err := makeBlock(data, s, mode)
 	if err != nil {
-		return sum.Sum{}, err
+		return err
 	}
 	if _, err := b.w.Write(block); err != nil {
-		return sum.Sum{}, err
+		return err
 	}
 
 	info := BlockInfo{
@@ -83,9 +77,8 @@ func (b *PackfileBuilder) Append(data []byte, mode compress.Mode) (sum.Sum, erro
 
 	// Update the builder for the next chunk
 	b.seq++
-	b.seen[s] = true
 
-	return s, nil
+	return nil
 }
 
 // Build returns the pack index for the packfile owned by the builder. Subsequent
@@ -99,7 +92,6 @@ func (b *PackfileBuilder) Build() PackIndex {
 func (b *PackfileBuilder) BytesWritten() uint64 {
 	return b.w.bytesWritten
 }
-
 
 type block struct {
 	Sum    sum.Sum
@@ -171,13 +163,18 @@ func LoadPackIndex(r io.Reader) (PackIndex, error) {
 }
 
 func makeBlock(data []byte, s sum.Sum, mode compress.Mode) ([]byte, error) {
+	compressed, err := mode.Compress(data)
+	if err != nil {
+		return nil, err
+	}
+
 	capacity := 8 + 1 + sum.Size + len(data)
 	block := make([]byte, 8, capacity)
 
-	binary.LittleEndian.PutUint64(block[:8], uint64(len(data)))
+	binary.LittleEndian.PutUint64(block[:8], uint64(len(compressed)))
 	block = append(block, mode.AsUint8())
 	block = append(block, s[:]...)
-	block = append(block, data...)
+	block = append(block, compressed...)
 
 	return block, nil
 }
@@ -198,12 +195,12 @@ func readBlock(r *countingReader) (block, error) {
 		return block{}, fmt.Errorf("invalid compression mode %d", mode)
 	}
 	var s sum.Sum
-	if _, err := r.Read(s[:]); err != nil {
+	if _, err := io.ReadFull(r, s[:]); err != nil {
 		return block{}, err
 	}
 	// TODO: put upper limit on size to prevent out-of-memory error
 	compressed := make([]byte, size)
-	if _, err := r.Read(compressed); err != nil {
+	if _, err := io.ReadFull(r, compressed); err != nil {
 		return block{}, err
 	}
 

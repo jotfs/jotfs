@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/valyala/gozstd"
+	"github.com/DataDog/zstd"
 )
 
 // Mode is the compression mode
@@ -31,14 +31,14 @@ func FromUint8(v uint8) (Mode, error) {
 }
 
 // Compress compresses src, appends it to dst, and returns the updated dst slice.
-func (m Mode) Compress(dst []byte, src []byte) []byte {
+func (m Mode) Compress(src []byte) ([]byte, error) {
 	switch m {
 	case None:
-		dst = append(dst, src...)
-		return dst
+		dst := make([]byte, len(src))
+		copy(dst, src)
+		return dst, nil
 	case Zstd:
-		dst = gozstd.Compress(dst, src)
-		return dst
+		return zstd.Compress(nil, src)
 	default:
 		panic("not implemented")
 	}
@@ -51,7 +51,16 @@ func (m Mode) DecompressStream(dst io.Writer, src io.Reader) error {
 		_, err := io.Copy(dst, src)
 		return err
 	case Zstd:
-		return gozstd.StreamDecompress(dst, src)
+		r := zstd.NewReader(src)
+		_, err := io.Copy(dst, r)
+		cerr := r.Close()
+		if cerr != nil || err != nil {
+			if cerr != nil {
+				return fmt.Errorf("%v; %v", err, cerr)
+			}
+			return err
+		}
+		return nil
 	default:
 		panic("not implemented")
 	}

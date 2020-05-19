@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/iotafs/iotafs/internal/db"
@@ -47,13 +47,12 @@ func NewServer(db *db.Adapter, s store.Store, cfg Config) *Server {
 }
 
 // PackfileUploadHandler accepts a Packfile from a client and saves it to the store.
-func (s *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request) {
-	length, err := getContentLength(req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request) {
+	if req.ContentLength <= 0 {
+		http.Error(w, "content-length required", http.StatusBadRequest)
 		return
 	}
-	if length > s.cfg.MaxPackfileSize {
+	if req.ContentLength > int64(srv.cfg.MaxPackfileSize) {
 		http.Error(w, "content-length exceeds maximum packfile size", http.StatusBadRequest)
 		return
 	}
@@ -66,11 +65,10 @@ func (s *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request)
 
 	digest := sum.AsHex()
 	pkey := digest + ".pack"
-	bucket := s.cfg.Bucket
-	pfile := s.store.NewFile(bucket, pkey)
+	bucket := srv.cfg.Bucket
+	pfile := srv.store.NewFile(bucket, pkey)
 
-	rd := io.LimitReader(req.Body, int64(length))
-	rd = io.TeeReader(rd, pfile)
+	rd := io.TeeReader(io.LimitReader(req.Body, req.ContentLength), pfile)
 
 	index, err := object.LoadPackIndex(rd)
 	if err != nil {
@@ -83,7 +81,7 @@ func (s *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request)
 	}
 	if index.Sum != sum {
 		log.OnError(pfile.Cancel)
-		msg := fmt.Sprintf("provided checksum %x does not match actual checksum %x", sum, index.Sum)
+		msg := fmt.Sprintf("provided packfile checksum %x does not match actual checksum %x", sum, index.Sum)
 		http.Error(w, msg, http.StatusBadRequest)
 	}
 	if err = pfile.Close(); err != nil {
@@ -93,15 +91,15 @@ func (s *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request)
 
 	ikey := digest + ".index"
 	b := index.MarshalBinary()
-	if err = putObject(s.store, bucket, ikey, b); err != nil {
-		log.OnError(func() error { return s.store.Delete(bucket, pkey) })
+	if err = putObject(srv.store, bucket, ikey, b); err != nil {
+		log.OnError(func() error { return srv.store.Delete(bucket, pkey) })
 		internalError(w, err)
 		return
 	}
 
-	if err = s.db.InsertPackIndex(index, digest); err != nil {
-		log.OnError(func() error { return s.store.Delete(bucket, pkey) })
-		log.OnError(func() error { return s.store.Delete(bucket, ikey) })
+	if err = srv.db.InsertPackIndex(index, digest); err != nil {
+		log.OnError(func() error { return srv.store.Delete(bucket, pkey) })
+		log.OnError(func() error { return srv.store.Delete(bucket, ikey) })
 		internalError(w, err)
 		return
 	}
@@ -110,29 +108,43 @@ func (s *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Request)
 }
 
 // CreateFile creates a new file.
-func (s *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, error) {
-
-	chunks := make([]object.Chunk, len(file.Chunks))
-	for i, c := range file.Chunks {
-		s, err := sum.FromBytes(c.Sum)
-		if err != nil {
-			msg := fmt.Sprintf("chunk %d: invalid checksum: %v", c.Sequence, err)
-			return nil, twirp.InvalidArgumentError("file", msg)
-		}
-		chunks[i] = object.Chunk{Sequence: c.Sequence, Size: c.Size, Sum: s}
+func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, error) {
+	// Ignore leading forward slash on filenames
+	name := strings.TrimPrefix(file.Name, "/")
+	if name == "" {
+		return nil, twirp.RequiredArgumentError("name")
 	}
 
-	f := object.File{Name: file.Name, Chunks: chunks, CreatedAt: time.Now().UTC()}
+	chunks := make([]object.Chunk, len(file.Sums))
+	for i, s := range file.Sums {
+		sum, err := sum.FromBytes(s)
+		if err != nil {
+			msg := fmt.Sprintf("sum %d: %v", i, err)
+			return nil, twirp.InvalidArgumentError("sums", msg)
+		}
+
+		size, err := srv.db.GetChunkSize(sum)
+		if errors.Is(err, db.ErrNotFound) {
+			msg := fmt.Sprintf("sum %d %x does not exist", i, sum)
+			return nil, twirp.NewError(twirp.FailedPrecondition, msg)
+		} else if err != nil {
+			return nil, err
+		}
+
+		chunks[i] = object.Chunk{Sequence: uint64(i), Size: size, Sum: sum}
+	}
+
+	f := object.File{Name: name, Chunks: chunks, CreatedAt: time.Now().UTC()}
 	b := f.MarshalBinary()
 	sum := sum.Compute(b)
 
 	fkey := sum.AsHex() + ".file"
-	if err := putObject(s.store, s.cfg.Bucket, fkey, b); err != nil {
+	if err := putObject(srv.store, srv.cfg.Bucket, fkey, b); err != nil {
 		return nil, err
 	}
 
-	if err := s.db.InsertFile(f, sum); err != nil {
-		log.OnError(func() error { return s.store.Delete(s.cfg.Bucket, fkey) })
+	if err := srv.db.InsertFile(f, sum); err != nil {
+		log.OnError(func() error { return srv.store.Delete(srv.cfg.Bucket, fkey) })
 		return nil, err
 	}
 
@@ -141,7 +153,10 @@ func (s *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, err
 
 // ChunksExist checks if a list of chunks already exist in the store. The response
 // contains a boolean for each chunk in the request.
-func (s *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) (*pb.ChunksExistResponse, error) {
+func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) (*pb.ChunksExistResponse, error) {
+	if len(req.Sums) == 0 {
+		return &pb.ChunksExistResponse{Exists: nil}, nil
+	}
 
 	sums := make([]sum.Sum, len(req.Sums))
 	for i, b := range req.Sums {
@@ -152,7 +167,7 @@ func (s *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) (*
 		sums[i] = s
 	}
 
-	exists, err := s.db.ChunksExist(sums)
+	exists, err := srv.db.ChunksExist(sums)
 	if err != nil {
 		return nil, err
 	}
@@ -163,18 +178,6 @@ func (s *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) (*
 func internalError(w http.ResponseWriter, e error) {
 	http.Error(w, "internal server error", http.StatusInternalServerError)
 	log.Error(e)
-}
-
-func getContentLength(req *http.Request) (uint64, error) {
-	h := req.Header.Get("content-length")
-	if h == "" {
-		return 0, errors.New("content-length required")
-	}
-	length, err := strconv.ParseUint(h, 10, 64)
-	if err != nil || length == 0 {
-		return 0, errors.New("invalid content-length")
-	}
-	return length, nil
 }
 
 func getChecksum(req *http.Request) (sum.Sum, error) {
@@ -197,4 +200,15 @@ func putObject(s store.Store, bucket string, key string, data []byte) error {
 		return err
 	}
 	return f.Close()
+}
+
+type countingReader struct {
+	reader    io.Reader
+	bytesRead uint64
+}
+
+func (r *countingReader) Read(p []byte) (n int, err error) {
+	n, err = r.reader.Read(p)
+	r.bytesRead += uint64(n)
+	return n, err
 }

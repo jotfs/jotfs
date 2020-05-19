@@ -2,12 +2,12 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/log"
 	"github.com/iotafs/iotafs/internal/object"
 	"github.com/iotafs/iotafs/internal/sum"
 )
@@ -39,7 +39,10 @@ func (a *Adapter) update(f func(tx *sql.Tx) error) error {
 		return err
 	}
 	if err := f(tx); err != nil {
-		log.OnError(tx.Rollback)
+		rerr := tx.Rollback()
+		if rerr != nil {
+			err = fmt.Errorf("%w; %v", err, rerr)
+		}
 		return err
 	}
 	return tx.Commit()
@@ -53,6 +56,9 @@ func (a *Adapter) ChunkExists(s sum.Sum) (bool, error) {
 // ChunksExist checks if chunks, identified by their checksum, exist in the file store.
 // Returns a bool for each chunk.
 func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
+	if len(sums) == 0 {
+		return nil, nil
+	}
 	q := fmt.Sprintf(
 		"SELECT DISTINCT sum FROM indexes WHERE sum IN (%s)",
 		strings.Repeat("?, ", len(sums)-1)+"?",
@@ -68,11 +74,16 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 	defer rows.Close()
 
 	exists := make(map[sum.Sum]bool, len(sums))
+	b := make([]byte, sum.Size)
 	for rows.Next() {
-		var s sum.Sum
-		if err := rows.Scan(&s); err != nil {
+		if err := rows.Scan(&b); err != nil {
 			return nil, err
 		}
+		s, err := sum.FromBytes(b)
+		if err != nil {
+			return nil, err
+		}
+		exists[s] = true
 	}
 
 	result := make([]bool, len(sums))
@@ -84,34 +95,53 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 	return result, nil
 }
 
+// ErrNotFound is returned when a row does not exist.
+var ErrNotFound = errors.New("not found")
+
+// GetChunkSize gets the size of a chunk. Returns ErrNotFound if the chunk does not exist.
+func (a *Adapter) GetChunkSize(s sum.Sum) (uint64, error) {
+	q := "SELECT chunk_size FROM indexes WHERE sum = ?"
+	row := a.db.QueryRow(q, s[:])
+	var size uint64
+	if err := row.Scan(&size); err == sql.ErrNoRows {
+		return 0, ErrNotFound
+	} else if err != nil {
+		return 0, err
+	}
+	return size, nil
+}
+
 // InsertPackIndex saves a PackIndex to the database.
 func (a *Adapter) InsertPackIndex(index object.PackIndex, id string) error {
 	return a.update(func(tx *sql.Tx) error {
 		packID, err := insertPackfile(tx, index, id)
 		if err != nil {
-			return err
+			return fmt.Errorf("inserting packfile: %w", err)
 		}
-		return insertPackBlocks(tx, packID, index.Blocks)
+		err = insertPackBlocks(tx, packID, index.Blocks)
+		if err != nil {
+			return fmt.Errorf("insert pack blocks: %w", err)
+		}
+		return nil
 	})
 }
-
-// // GetPackIndex gets a PackIndex from the database.
-// func (a *Adapter) GetPackIndex(s sum.Sum) (object.PackIndex, error) {
-
-// }
 
 // InsertFile saves a File object to the database.
 func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	return a.update(func(tx *sql.Tx) error {
 		fileID, err := insertFileIfNotExists(tx, file.Name)
 		if err != nil {
-			return err
+			return fmt.Errorf("inserting file: %w", err)
 		}
 		fileVerID, err := insertFileVersion(tx, fileID, file, sum)
 		if err != nil {
-			return err
+			return fmt.Errorf("inserting file version: %w", err)
 		}
-		return insertFileChunks(tx, fileVerID, file.Chunks)
+		err = insertFileChunks(tx, fileVerID, file.Chunks)
+		if err != nil {
+			return fmt.Errorf("inserting file chunks: %w", err)
+		}
+		return nil
 	})
 }
 

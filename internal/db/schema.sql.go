@@ -53,8 +53,8 @@ CREATE TABLE file_versions (
     sum        BLOB NOT NULL,
 
     CHECK (created_at > 0),
-    CHECK (size > 0),
-    CHECK (num_chunks > 0),
+    CHECK (size >= 0),
+    CHECK (num_chunks >= 0),
     CHECK (length(sum) = 32)
 );
 CREATE UNIQUE INDEX file_versions_sum_index ON file_versions(sum);
