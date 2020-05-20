@@ -109,10 +109,12 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 
 // CreateFile creates a new file.
 func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, error) {
-	// Ignore leading forward slash on filenames
-	name := strings.TrimPrefix(file.Name, "/")
+	name := file.Name
 	if name == "" {
 		return nil, twirp.RequiredArgumentError("name")
+	}
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
 	}
 
 	chunks := make([]object.Chunk, len(file.Sums))
@@ -174,6 +176,27 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 
 	return &pb.ChunksExistResponse{Exists: exists}, nil
 }
+
+func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
+	infos, err := srv.db.ListFiles(p.Prefix, 1000)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]*pb.FileInfo, len(infos))
+	for i, info := range infos {
+		res[i] = &pb.FileInfo{
+			Name:      info.Name,
+			CreatedAt: info.CreatedAt.UnixNano(),
+			Size:      info.Size,
+			Sum:       info.Sum[:],
+		}
+	}
+
+	return &pb.Files{Infos: res}, nil
+}
+
+func (srv *Server) Rename(ctx context.Context, )
 
 func internalError(w http.ResponseWriter, e error) {
 	http.Error(w, "internal server error", http.StatusInternalServerError)

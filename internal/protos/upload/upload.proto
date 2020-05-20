@@ -6,6 +6,8 @@ option go_package = "internal/protos/upload";
 service IotaFS {
     rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
     rpc CreateFile(File) returns (FileID);
+    rpc ListFiles(Prefix) returns (Files);
+    rpc Rename(Filename) returns (Empty);
 }
 
 message ChunksExistRequest {
@@ -24,4 +26,25 @@ message File {
 message FileID {
     string name = 1;
     bytes sum = 2;
+}
+
+message Prefix {
+    string prefix = 1;
+}
+
+message Files {
+    repeated FileInfo infos = 1;
+}
+
+message FileInfo {
+    string name = 1;
+    int64 created_at = 2;
+    uint64 size = 3;
+    bytes sum = 4;
+}
+
+message Empty {}
+
+message Filename {
+    string name = 1;
 }
