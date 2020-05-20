@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/object"
@@ -143,6 +144,43 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 		}
 		return nil
 	})
+}
+
+func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
+	q := `
+	SELECT name, created_at, size, sum 
+	FROM files JOIN file_versions ON files.id = file_versions.file
+	WHERE name LIKE ?
+	`
+	rows, err := a.db.Query(q, prefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	var name string
+	var createdAt int64
+	var size uint64
+	s := make([]byte, sum.Size)
+	infos := make([]FileInfo, 0)
+	for i := 0; rows.Next(); i++ {
+		if err := rows.Scan(&name, &createdAt, &size, &s); err != nil {
+			return nil, err
+		}
+		sum, err := sum.FromBytes(s)
+		if err != nil {
+			return nil, err
+		}
+		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum}
+		infos = append(infos, info)
+	}
+
+	return infos, nil
+}
+
+type FileInfo struct {
+	Name      string
+	CreatedAt time.Time
+	Size      uint64
+	Sum       sum.Sum
 }
 
 type ChunkIndex struct {
@@ -293,7 +331,7 @@ func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error 
 
 func insertFileVersion(tx *sql.Tx, fileID int64, file object.File, sum sum.Sum) (int64, error) {
 	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks", "sum"})
-	res, err := tx.Exec(q, fileID, file.CreatedAt, file.Size(), len(file.Chunks), sum[:])
+	res, err := tx.Exec(q, fileID, file.CreatedAt.UnixNano(), file.Size(), len(file.Chunks), sum[:])
 	if err != nil {
 		return 0, err
 	}

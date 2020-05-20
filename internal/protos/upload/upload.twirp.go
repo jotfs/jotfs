@@ -36,6 +36,8 @@ type IotaFS interface {
 	ChunksExist(context.Context, *ChunksExistRequest) (*ChunksExistResponse, error)
 
 	CreateFile(context.Context, *File) (*FileID, error)
+
+	ListFiles(context.Context, *Prefix) (*Files, error)
 }
 
 // ======================
@@ -44,7 +46,7 @@ type IotaFS interface {
 
 type iotaFSProtobufClient struct {
 	client HTTPClient
-	urls   [2]string
+	urls   [3]string
 	opts   twirp.ClientOptions
 }
 
@@ -61,9 +63,10 @@ func NewIotaFSProtobufClient(addr string, client HTTPClient, opts ...twirp.Clien
 	}
 
 	prefix := urlBase(addr) + IotaFSPathPrefix
-	urls := [2]string{
+	urls := [3]string{
 		prefix + "ChunksExist",
 		prefix + "CreateFile",
+		prefix + "ListFiles",
 	}
 
 	return &iotaFSProtobufClient{
@@ -113,13 +116,33 @@ func (c *iotaFSProtobufClient) CreateFile(ctx context.Context, in *File) (*FileI
 	return out, nil
 }
 
+func (c *iotaFSProtobufClient) ListFiles(ctx context.Context, in *Prefix) (*Files, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "upload")
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "ListFiles")
+	out := new(Files)
+	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // ==================
 // IotaFS JSON Client
 // ==================
 
 type iotaFSJSONClient struct {
 	client HTTPClient
-	urls   [2]string
+	urls   [3]string
 	opts   twirp.ClientOptions
 }
 
@@ -136,9 +159,10 @@ func NewIotaFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOpt
 	}
 
 	prefix := urlBase(addr) + IotaFSPathPrefix
-	urls := [2]string{
+	urls := [3]string{
 		prefix + "ChunksExist",
 		prefix + "CreateFile",
+		prefix + "ListFiles",
 	}
 
 	return &iotaFSJSONClient{
@@ -174,6 +198,26 @@ func (c *iotaFSJSONClient) CreateFile(ctx context.Context, in *File) (*FileID, e
 	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	out := new(FileID)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *iotaFSJSONClient) ListFiles(ctx context.Context, in *Prefix) (*Files, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "upload")
+	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithMethodName(ctx, "ListFiles")
+	out := new(Files)
+	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -241,6 +285,9 @@ func (s *iotaFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		return
 	case "/twirp/upload.IotaFS/CreateFile":
 		s.serveCreateFile(ctx, resp, req)
+		return
+	case "/twirp/upload.IotaFS/ListFiles":
+		s.serveListFiles(ctx, resp, req)
 		return
 	default:
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
@@ -485,6 +532,135 @@ func (s *iotaFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.Re
 	}
 	if respContent == nil {
 		s.writeError(ctx, resp, twirp.InternalError("received a nil *FileID and nil error while calling CreateFile. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *iotaFSServer) serveListFiles(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveListFilesJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveListFilesProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *iotaFSServer) serveListFilesJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListFiles")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	reqContent := new(Prefix)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	if err = unmarshaler.Unmarshal(req.Body, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the json request could not be decoded"))
+		return
+	}
+
+	// Call service method
+	var respContent *Files
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = s.IotaFS.ListFiles(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Files and nil error while calling ListFiles. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	var buf bytes.Buffer
+	marshaler := &jsonpb.Marshaler{OrigName: true}
+	if err = marshaler.Marshal(&buf, respContent); err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	respBytes := buf.Bytes()
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *iotaFSServer) serveListFilesProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "ListFiles")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to read request body"))
+		return
+	}
+	reqContent := new(Prefix)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	// Call service method
+	var respContent *Files
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = s.IotaFS.ListFiles(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *Files and nil error while calling ListFiles. nil responses are not supported"))
 		return
 	}
 
@@ -1033,20 +1209,26 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 233 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x90, 0x41, 0x4b, 0xc4, 0x30,
-	0x10, 0x85, 0xe9, 0xee, 0x12, 0x74, 0x2c, 0x22, 0x11, 0x96, 0x52, 0x2f, 0xa5, 0x5e, 0x82, 0x60,
-	0x16, 0xf4, 0x1f, 0xb8, 0x6b, 0xa1, 0xd7, 0x78, 0xf3, 0x16, 0x71, 0xc0, 0x62, 0x9b, 0xd4, 0x4e,
-	0x02, 0x1e, 0xfc, 0xf1, 0x92, 0x6c, 0x94, 0x8a, 0x3d, 0xe5, 0x7d, 0x93, 0x97, 0xc7, 0xbc, 0xc0,
-	0x75, 0x67, 0x1c, 0x4e, 0x46, 0xf7, 0xbb, 0x71, 0xb2, 0xce, 0xd2, 0xce, 0x8f, 0xbd, 0xd5, 0xaf,
-	0xe9, 0x90, 0x71, 0xc8, 0xd9, 0x91, 0x6a, 0x01, 0x7c, 0xff, 0xe6, 0xcd, 0x3b, 0x3d, 0x7e, 0x76,
-	0xe4, 0x14, 0x7e, 0x78, 0x24, 0xc7, 0x39, 0x6c, 0xc8, 0x0f, 0x54, 0x64, 0xd5, 0x5a, 0xe4, 0x2a,
-	0xea, 0xfa, 0x16, 0x2e, 0xff, 0x38, 0x69, 0xb4, 0x86, 0x90, 0x6f, 0x81, 0x61, 0x18, 0x1c, 0xcd,
-	0x27, 0x2a, 0x51, 0x2d, 0x61, 0xd3, 0x74, 0x3d, 0x86, 0x28, 0xa3, 0x07, 0x2c, 0xb2, 0x2a, 0x13,
-	0xa7, 0x2a, 0xea, 0xdf, 0xf8, 0xd5, 0x2c, 0x5e, 0x02, 0x0b, 0xfe, 0xf6, 0xb0, 0xf8, 0xe2, 0x02,
-	0xd6, 0xe4, 0x87, 0x62, 0x55, 0x65, 0x22, 0x57, 0x41, 0xde, 0x7d, 0x01, 0x6b, 0xad, 0xd3, 0xcd,
-	0x13, 0x6f, 0xe0, 0x6c, 0xb6, 0x18, 0x2f, 0x65, 0x2a, 0xfa, 0xbf, 0x57, 0x79, 0xb5, 0x78, 0x97,
-	0x9a, 0xdc, 0x00, 0xec, 0x27, 0xd4, 0x0e, 0xe3, 0xde, 0xf9, 0x8f, 0x35, 0x50, 0x79, 0x3e, 0xa7,
-	0xf6, 0xf0, 0x50, 0x3c, 0x6f, 0x97, 0x7f, 0xf9, 0x85, 0x45, 0xbc, 0xff, 0x0e, 0x00, 0x00, 0xff,
-	0xff, 0x46, 0x06, 0x5e, 0x6b, 0x86, 0x01, 0x00, 0x00,
+	// 335 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x6c, 0x92, 0x5d, 0x6b, 0xf2, 0x30,
+	0x14, 0xc7, 0xa9, 0xad, 0x45, 0x8f, 0x3e, 0x0f, 0x92, 0x81, 0x94, 0x8e, 0x41, 0xe9, 0x60, 0x14,
+	0x61, 0x15, 0xdc, 0x27, 0xd8, 0x74, 0x82, 0xb0, 0x8b, 0x91, 0xdd, 0xed, 0x66, 0x74, 0x1a, 0x59,
+	0x98, 0x26, 0x5d, 0x4f, 0x0a, 0xb2, 0x4f, 0xb4, 0x8f, 0x39, 0xf2, 0xa2, 0x54, 0xd6, 0xab, 0xfe,
+	0xcf, 0x4b, 0x4e, 0x7f, 0xf9, 0x9f, 0xc0, 0x35, 0x17, 0x8a, 0x55, 0xa2, 0xd8, 0x4d, 0xcb, 0x4a,
+	0x2a, 0x89, 0xd3, 0xba, 0xdc, 0xc9, 0x62, 0xe3, 0x3e, 0xb9, 0x49, 0x92, 0xd0, 0x46, 0x69, 0x06,
+	0x64, 0xfe, 0x51, 0x8b, 0x4f, 0x7c, 0x3c, 0x70, 0x54, 0x94, 0x7d, 0xd5, 0x0c, 0x15, 0x21, 0x10,
+	0x60, 0xbd, 0xc7, 0xc8, 0x4b, 0xfc, 0x6c, 0x48, 0x8d, 0x4e, 0x6f, 0xe1, 0xe2, 0xac, 0x13, 0x4b,
+	0x29, 0x90, 0x91, 0x31, 0x84, 0x4c, 0x27, 0x6c, 0x73, 0x8f, 0xba, 0x28, 0xcd, 0x21, 0x58, 0xf2,
+	0x1d, 0xd3, 0xa3, 0x44, 0xb1, 0x67, 0x91, 0x97, 0x78, 0x59, 0x9f, 0x1a, 0x7d, 0x1a, 0xdf, 0x69,
+	0x8c, 0xcf, 0x21, 0xd4, 0xfd, 0xab, 0x45, 0xeb, 0x89, 0x11, 0xf8, 0x58, 0xef, 0xa3, 0x4e, 0xe2,
+	0x65, 0x43, 0xaa, 0x65, 0x9a, 0x40, 0xf8, 0x5c, 0xb1, 0x2d, 0x3f, 0x68, 0x82, 0xd2, 0x28, 0x77,
+	0xc2, 0x45, 0xe9, 0x14, 0xba, 0x7a, 0x22, 0x92, 0x1b, 0xe8, 0x72, 0xb1, 0x95, 0x96, 0x70, 0x30,
+	0x1b, 0xe5, 0xce, 0x09, 0xf3, 0x3f, 0xb1, 0x95, 0xd4, 0x96, 0xd3, 0x35, 0xf4, 0x8e, 0xa9, 0x56,
+	0x88, 0x2b, 0x80, 0x75, 0xc5, 0x0a, 0xc5, 0x36, 0x6f, 0x85, 0x32, 0x2c, 0x3e, 0xed, 0xbb, 0xcc,
+	0xbd, 0x35, 0x8d, 0x7f, 0xb3, 0xc8, 0x4f, 0xbc, 0x2c, 0xa0, 0x46, 0x1f, 0xb9, 0x83, 0x13, 0xf7,
+	0xec, 0xc7, 0x83, 0x70, 0x25, 0x55, 0xb1, 0x7c, 0x21, 0x4b, 0x18, 0x34, 0x1c, 0x25, 0xf1, 0x91,
+	0xeb, 0xef, 0x42, 0xe2, 0xcb, 0xd6, 0x9a, 0x5b, 0xc1, 0x04, 0x60, 0x6e, 0x28, 0x8c, 0xe1, 0xc3,
+	0xe6, 0xf5, 0xe2, 0xff, 0x67, 0x97, 0x5d, 0x90, 0x09, 0xf4, 0x9f, 0x38, 0x2a, 0x6b, 0xcc, 0xa9,
+	0x68, 0x9d, 0x8c, 0xff, 0x35, 0x9b, 0xf1, 0x21, 0x7a, 0x1d, 0xb7, 0x3f, 0xa5, 0xf7, 0xd0, 0x84,
+	0x77, 0xbf, 0x01, 0x00, 0x00, 0xff, 0xff, 0x46, 0x67, 0xf5, 0x63, 0x6b, 0x02, 0x00, 0x00,
 }
