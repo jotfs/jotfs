@@ -22,15 +22,17 @@ type Store interface {
 
 	// Delete deletes a file. Returns an error if the file does not exist.
 	Delete(bucket string, key string) error
+
+	// PresignGetURL generates a URL to download an object.
+	PresignGetURL(bucket string, key string, expires time.Duration, contentRange *Range) (string, error)
 }
 
 // Range specifies a byte range, inclusive at each end
 type Range struct {
-	From int
-	To   int
+	From uint64
+	To   uint64
 }
 
 // Presigner creates pre-signed URLs for retrieving data from the store.
 type Presigner interface {
-	PresignGetURL(bucket string, key string, expires time.Duration, contentRange *Range) (string, error)
 }

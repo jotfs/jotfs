@@ -156,6 +156,8 @@ func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var name string
 	var createdAt int64
 	var size uint64
@@ -168,6 +170,36 @@ func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
 		sum, err := sum.FromBytes(s)
 		if err != nil {
 			return nil, err
+		}
+		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum}
+		infos = append(infos, info)
+	}
+
+	return infos, nil
+}
+
+func (a *Adapter) GetFileVersions(name string) ([]FileInfo, error) {
+	q := `
+	SELECT created_at, size, sum 
+	FROM files JOIN file_versions ON files.id = file_versions.file
+	WHERE name = ?
+	`
+	rows, err := a.db.Query(q, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var createdAt int64
+	var size uint64
+	s := make([]byte, sum.Size)
+	infos := make([]FileInfo, 0)
+	for i := 0; rows.Next(); i++ {
+		if err := rows.Scan(&createdAt, &size, &s); err != nil {
+			return nil, fmt.Errorf("row %d: %w", i, err)
+		}
+		sum, err := sum.FromBytes(s)
+		if err != nil {
+			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
 		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum}
 		infos = append(infos, info)
@@ -191,13 +223,13 @@ type ChunkIndex struct {
 
 func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 
-	// Get the row ID for the file version and
+	// Get the row id for the file version
 	q := "SELECT id, num_chunks FROM file_versions WHERE sum = ?"
 	var verID int64
 	var nChunks int
-	row := a.db.QueryRow(q, s)
+	row := a.db.QueryRow(q, s[:])
 	if err := row.Scan(&verID, &nChunks); err == sql.ErrNoRows {
-		return nil, fmt.Errorf("not found")
+		return nil, ErrNotFound
 	} else if err != nil {
 		return nil, err
 	}
@@ -210,7 +242,7 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 			indexes.mode,
 			indexes.offset,
 			indexes.size,
-			indexes.sequence
+			indexes.sequence,
 			packs.sum
 		FROM 
 			file_contents 
@@ -228,23 +260,24 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 	defer rows.Close()
 
 	chunks := make([]ChunkIndex, nChunks)
+	var (
+		cSeq    uint64
+		cSum    []byte
+		cSize   uint64
+		mode    uint8
+		bOffset uint64
+		bSize   uint64
+		bSeq    uint64
+		pSum    []byte
+	)
 	var i int
 	for ; rows.Next(); i++ {
 		if i >= nChunks {
 			return nil, fmt.Errorf("number of chunks greater than expected %d", nChunks)
 		}
-		var (
-			cSeq    uint64
-			cSum    sum.Sum
-			cSize   uint64
-			mode    uint8
-			bOffset uint64
-			bSize   uint64
-			bSeq    uint64
-			pSum    sum.Sum
-		)
+
 		if err := rows.Scan(&cSeq, &cSum, &cSize, &mode, &bOffset, &bSize, &bSeq, &pSum); err != nil {
-			return nil, err
+			return nil, err 
 		}
 		cmode, err := compress.FromUint8(mode)
 		if err != nil {
@@ -253,11 +286,20 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 		if uint64(i) != cSeq {
 			return nil, fmt.Errorf("expected next chunk sequence %d but received %d", i, cSeq)
 		}
+
+		cs, err := sum.FromBytes(cSum)
+		if err != nil {
+			return nil, err
+		}
+		ps, err := sum.FromBytes(pSum)
+		if err != nil {
+			return nil, err
+		}
 		chunks[i] = ChunkIndex{
 			Sequence: cSeq,
-			PackSum:  pSum,
+			PackSum:  ps,
 			Block: object.BlockInfo{
-				Sum:       cSum,
+				Sum:       cs,
 				ChunkSize: cSize,
 				Sequence:  bSeq,
 				Offset:    bOffset,
@@ -265,9 +307,6 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 				Mode:      cmode,
 			},
 		}
-	}
-	if i != nChunks-1 {
-		return nil, fmt.Errorf("expected %d chunks but received %d", nChunks, i)
 	}
 
 	return chunks, nil
@@ -295,23 +334,6 @@ func insertPackBlocks(tx *sql.Tx, packID int64, blocks []object.BlockInfo) error
 	}
 	return nil
 }
-
-// func getPackBlocks(tx *sql.Tx, packID int64) ([]object.BlockInfo, error) {
-// 	q := `
-// 		SELECT pack, sequence, sum, chunk_size, mode, offset, size
-// 		FROM indexes
-// 		WHERE pack = $1
-// 	`
-// 	rows, err := tx.Query(q, packID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	blocks := make([]object.BlockInfo, 0)
-// 	for rows.Next() {
-
-// 	}
-
-// }
 
 func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error {
 	q := insertOne("file_contents", []string{"file_version", "idx", "sequence"})

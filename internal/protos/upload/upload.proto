@@ -7,7 +7,9 @@ service IotaFS {
     rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
     rpc CreateFile(File) returns (FileID);
     rpc ListFiles(Prefix) returns (Files);
-    rpc Rename(Filename) returns (Empty);
+    rpc HeadFile(Filename) returns (Files);
+    // rpc Rename(Filename) returns (Empty);
+    rpc Download(FileID) returns (DownloadResponse);
 }
 
 message ChunksExistRequest {
@@ -24,8 +26,7 @@ message File {
 }
 
 message FileID {
-    string name = 1;
-    bytes sum = 2;
+    bytes sum = 1;
 }
 
 message Prefix {
@@ -48,3 +49,23 @@ message Empty {}
 message Filename {
     string name = 1;
 }
+
+message SectionChunk {
+    uint64 sequence = 1;
+    uint64 size = 2;
+    bytes sum = 3;
+    uint64 block_offset = 4;
+}
+
+message Section {
+    repeated SectionChunk chunks = 1;
+    string url = 2;
+    uint64 range_start = 3;
+    uint64 range_end = 4;
+}
+
+message DownloadResponse {
+    repeated Section sections = 1;
+}
+
+

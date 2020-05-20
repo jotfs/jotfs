@@ -150,7 +150,7 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 		return nil, err
 	}
 
-	return &pb.FileID{Name: file.Name, Sum: sum[:]}, nil
+	return &pb.FileID{Sum: sum[:]}, nil
 }
 
 // ChunksExist checks if a list of chunks already exist in the store. The response
@@ -178,7 +178,14 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 }
 
 func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
-	infos, err := srv.db.ListFiles(p.Prefix, 1000)
+	prefix := p.Prefix
+	if prefix == "" {
+		return nil, twirp.RequiredArgumentError("prefix")
+	}
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	infos, err := srv.db.ListFiles(prefix, 1000)
 	if err != nil {
 		return nil, err
 	}
@@ -194,6 +201,144 @@ func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, erro
 	}
 
 	return &pb.Files{Infos: res}, nil
+}
+
+func (srv *Server) HeadFile(ctx context.Context, f *pb.Filename) (*pb.Files, error) {
+	name := f.Name
+	if name == "" {
+		return nil, twirp.RequiredArgumentError("name")
+	}
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
+	}
+	versions, err := srv.db.GetFileVersions(name)
+	if err != nil {
+		return nil, fmt.Errorf("db GetFileVersions: %w", err)
+	}
+
+	res := make([]*pb.FileInfo, len(versions))
+	for i, info := range versions {
+		res[i] = &pb.FileInfo{
+			Name:      info.Name,
+			CreatedAt: info.CreatedAt.UnixNano(),
+			Size:      info.Size,
+			Sum:       info.Sum[:],
+		}
+	}
+
+	return &pb.Files{Infos: res}, nil
+}
+
+type chunk struct {
+	Sequence    uint64
+	Sum         sum.Sum
+	Size        uint64
+	BlockOffset uint64
+}
+
+type section struct {
+	chunks  []chunk
+	packSum sum.Sum
+	start   uint64
+	end     uint64
+}
+
+func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadResponse, error) {
+	if id.Sum == nil {
+		return nil, twirp.RequiredArgumentError("sum")
+	}
+	fileID, err := sum.FromBytes(id.Sum)
+	if err != nil {
+		return nil, twirp.InvalidArgumentError("sum", err.Error())
+	}
+
+	indices, err := srv.db.GetFileChunks(fileID)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, twirp.NotFoundError(fmt.Sprintf("file %x", id.Sum))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("db GetFileChunks: %w", err)
+	}
+
+	// Gather the chunks into sections corresponding to contiguous slices of a packfile
+	sections := make([]section, 0)
+	var packSum sum.Sum
+	var blockStart object.BlockInfo
+	var blockEnd object.BlockInfo
+	var chunks []chunk
+	for i, idx := range indices {
+		bseq := idx.Block.Sequence
+		if packSum == idx.PackSum && bseq >= blockStart.Sequence && bseq <= blockEnd.Sequence+1 {
+			if bseq == blockEnd.Sequence+1 {
+				blockEnd = idx.Block
+			}
+		} else {
+			// New section
+			if i != 0 {
+				sections = append(sections, section{
+					chunks:  chunks,
+					packSum: packSum,
+					start:   blockStart.Offset,
+					end:     blockEnd.Offset + blockEnd.Size,
+				})
+			}
+
+			packSum = idx.PackSum
+			blockStart = idx.Block
+			blockEnd = idx.Block
+			chunks = nil
+		}
+		chunks = append(chunks, chunk{
+			Sequence:    idx.Sequence,
+			Sum:         idx.Block.Sum,
+			Size:        idx.Block.ChunkSize,
+			BlockOffset: idx.Block.Offset - blockStart.Offset,
+		})
+	}
+	sections = append(sections, section{  // Don't forget the final section
+		chunks:  chunks,
+		packSum: packSum,
+		start:   blockStart.Offset,
+		end:     blockEnd.Offset + blockEnd.Size,
+	})
+
+	// Generate a pre-signed URL to download the data for each section
+	urls := make([]string, len(sections))
+	bucket := srv.cfg.Bucket
+	for i, section := range sections {
+		key := section.packSum.AsHex() + ".pack"
+		expires := time.Duration(15 * time.Minute)
+		rnge := &store.Range{From: section.start, To: section.end}
+		url, err := srv.store.PresignGetURL(bucket, key, expires, rnge)
+		if err != nil {
+			return nil, err
+		}
+		urls[i] = url
+	}
+
+	// Constuct the response
+	rSections := make([]*pb.Section, len(sections))
+	for i, section := range sections {
+		rChunks := make([]*pb.SectionChunk, len(section.chunks))
+		for j, chunk := range section.chunks {
+			rChunks[j] = &pb.SectionChunk{
+				Sequence:    chunk.Sequence,
+				Size:        chunk.Size,
+				Sum:         chunk.Sum[:],
+				BlockOffset: chunk.BlockOffset,
+			}
+		}
+		rSections[i] = &pb.Section{
+			Chunks: rChunks, 
+			Url: urls[i], 
+			RangeStart: section.start,
+			RangeEnd: section.end,
+		}
+	}
+	resp := &pb.DownloadResponse{Sections: rSections}
+
+	return resp, nil
+
 }
 
 func internalError(w http.ResponseWriter, e error) {
