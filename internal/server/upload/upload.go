@@ -203,15 +203,25 @@ func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, erro
 	return &pb.Files{Infos: res}, nil
 }
 
-func (srv *Server) HeadFile(ctx context.Context, f *pb.Filename) (*pb.Files, error) {
-	name := f.Name
+func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.HeadFileResponse, error) {
+	name := req.Name
 	if name == "" {
 		return nil, twirp.RequiredArgumentError("name")
 	}
 	if !strings.HasPrefix(name, "/") {
 		name = "/" + name
 	}
-	versions, err := srv.db.GetFileVersions(name)
+	if req.Limit == 0 {
+		return nil, twirp.RequiredArgumentError("limit")
+	}
+	if req.Limit > 10000 {
+		return nil, twirp.InvalidArgumentError("limit", "must be less than 10000")
+	}
+	if req.NextPageToken < 0 {
+		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
+	}
+
+	versions, err := srv.db.GetFileVersions(name, req.NextPageToken, req.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("db GetFileVersions: %w", err)
 	}
@@ -226,8 +236,42 @@ func (srv *Server) HeadFile(ctx context.Context, f *pb.Filename) (*pb.Files, err
 		}
 	}
 
-	return &pb.Files{Infos: res}, nil
+	nextToken := int64(-1)
+	if uint64(len(res)) == req.Limit && len(res) > 0 {
+		nextToken = res[len(res)-1].CreatedAt
+	}
+
+	return &pb.HeadFileResponse{Info: res, NextPageToken: nextToken}, nil
 }
+
+// func (srv *Server) HeadFileLatest(ctx context.Context, f *pb.Filename) (*pb.FileInfo, error) {
+// 	name := f.Name
+// 	if name == "" {
+// 		return nil, twirp.RequiredArgumentError("name")
+// 	}
+// 	if !strings.HasPrefix(name, "/") {
+// 		name = "/" + name
+// 	}
+
+// 	versions, err := srv.db.GetFileVersions(f.Name, 1)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("db GetFileVersions: %w", err)
+// 	}
+// 	if len(versions) == 0 {
+// 		return nil, twirp.NotFoundError(fmt.Sprintf("file %s", f.Name))
+// 	}
+// 	v := versions[0]
+
+// 	info := &pb.FileInfo{
+// 		Name:      v.Name,
+// 		CreatedAt: v.CreatedAt.UnixNano(),
+// 		Size:      v.Size,
+// 		Sum:       v.Sum[:],
+// 	}
+
+// 	return info, nil
+
+// }
 
 type chunk struct {
 	Sequence    uint64
@@ -295,7 +339,7 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 			BlockOffset: idx.Block.Offset - blockStart.Offset,
 		})
 	}
-	sections = append(sections, section{  // Don't forget the final section
+	sections = append(sections, section{ // Don't forget the final section
 		chunks:  chunks,
 		packSum: packSum,
 		start:   blockStart.Offset,
@@ -329,16 +373,59 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 			}
 		}
 		rSections[i] = &pb.Section{
-			Chunks: rChunks, 
-			Url: urls[i], 
+			Chunks:     rChunks,
+			Url:        urls[i],
 			RangeStart: section.start,
-			RangeEnd: section.end,
+			RangeEnd:   section.end,
 		}
 	}
 	resp := &pb.DownloadResponse{Sections: rSections}
 
 	return resp, nil
 
+}
+
+func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, error) {
+	if req.SrcId == nil {
+		return nil, twirp.RequiredArgumentError("src_id")
+	}
+	dst := req.Dst
+	if dst == "" {
+		return nil, twirp.RequiredArgumentError("dst")
+	}
+	if !strings.HasPrefix(dst, "/") {
+		dst = "/" + dst
+	}
+	srcID, err := sum.FromBytes(req.SrcId)
+	if err != nil {
+		return nil, twirp.InvalidArgumentError("src_id", err.Error())
+	}
+
+	// Get the file
+	f, err := srv.db.GetFile(srcID)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, twirp.NotFoundError(fmt.Sprintf("file %x", srcID))
+	} else if err != nil {
+		return nil, fmt.Errorf("db GetFile: %w", err)
+	}
+	f.Name = dst
+	f.CreatedAt = time.Now().UTC()
+
+	// Save the new file to the database and store
+	b := f.MarshalBinary()
+	sum := sum.Compute(b)
+
+	fkey := sum.AsHex() + ".file"
+	if err := putObject(srv.store, srv.cfg.Bucket, fkey, b); err != nil {
+		return nil, err
+	}
+
+	if err := srv.db.InsertFile(f, sum); err != nil {
+		log.OnError(func() error { return srv.store.Delete(srv.cfg.Bucket, fkey) })
+		return nil, fmt.Errorf("inserting file: %w", err)
+	}
+
+	return &pb.FileID{Sum: sum[:]}, nil
 }
 
 func internalError(w http.ResponseWriter, e error) {

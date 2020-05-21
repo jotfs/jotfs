@@ -146,6 +146,55 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	})
 }
 
+func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
+	q := "SELECT id, file, created_at, num_chunks FROM file_versions WHERE sum = ?"
+	row := a.db.QueryRow(q, s[:])
+	var versionID int64
+	var fileID int64
+	var createdAt int64
+	var numChunks uint64
+	err := row.Scan(&versionID, &fileID, &createdAt, &numChunks)
+	if err == sql.ErrNoRows {
+		return object.File{}, ErrNotFound
+	}
+	if err != nil {
+		return object.File{}, err
+	}
+
+	q = "SELECT name FROM files WHERE id = ?"
+	row = a.db.QueryRow(q, fileID)
+	var name string
+	if err := row.Scan(&name); err != nil {
+		return object.File{}, err
+	}
+
+	q = `
+	SELECT file_contents.sequence, chunk_size, sum
+	FROM file_contents JOIN indexes on indexes.id = file_contents.idx
+	WHERE file_contents.file_version = ?
+	`
+	rows, err := a.db.Query(q, versionID)
+	if err != nil {
+		return object.File{}, err
+	}
+	chunks := make([]object.Chunk, 0, numChunks)
+	var seq uint64
+	var size uint64
+	csum := make([]byte, sum.Size)
+	for rows.Next() {
+		if err := rows.Scan(&seq, &size, &csum); err != nil {
+			return object.File{}, err
+		}
+		sum, err := sum.FromBytes(csum)
+		if err != nil {
+			return object.File{}, err
+		}
+		chunks = append(chunks, object.Chunk{Sequence: seq, Size: size, Sum: sum})
+	}
+
+	return object.File{Name: name, CreatedAt: time.Unix(0, createdAt), Chunks: chunks}, nil
+}
+
 func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
 	q := `
 	SELECT name, created_at, size, sum 
@@ -178,17 +227,20 @@ func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
 	return infos, nil
 }
 
-func (a *Adapter) GetFileVersions(name string) ([]FileInfo, error) {
+func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64) ([]FileInfo, error) {
 	q := `
 	SELECT created_at, size, sum 
 	FROM files JOIN file_versions ON files.id = file_versions.file
-	WHERE name = ?
+	WHERE name = ? AND created_at > ?
+	ORDER BY created_at DESC
+	LIMIT ?
 	`
-	rows, err := a.db.Query(q, name)
+	rows, err := a.db.Query(q, name, offset, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
 	var createdAt int64
 	var size uint64
 	s := make([]byte, sum.Size)
@@ -277,7 +329,7 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 		}
 
 		if err := rows.Scan(&cSeq, &cSum, &cSize, &mode, &bOffset, &bSize, &bSeq, &pSum); err != nil {
-			return nil, err 
+			return nil, err
 		}
 		cmode, err := compress.FromUint8(mode)
 		if err != nil {

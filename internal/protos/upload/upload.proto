@@ -7,9 +7,10 @@ service IotaFS {
     rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
     rpc CreateFile(File) returns (FileID);
     rpc ListFiles(Prefix) returns (Files);
-    rpc HeadFile(Filename) returns (Files);
-    // rpc Rename(Filename) returns (Empty);
+    rpc HeadFile(HeadFileRequest) returns (HeadFileResponse);
+    // rpc HeadFileLatest(Filename) returns (FileInfo);
     rpc Download(FileID) returns (DownloadResponse);
+    rpc Copy(CopyRequest) returns (FileID);
 }
 
 message ChunksExistRequest {
@@ -25,12 +26,28 @@ message File {
     repeated bytes sums = 2;
 }
 
+message CopyRequest {
+    bytes src_id = 1;
+    string dst = 2;
+}
+
 message FileID {
     bytes sum = 1;
 }
 
 message Prefix {
     string prefix = 1;
+}
+
+message HeadFileRequest {
+    string name = 1;
+    uint64 limit = 2;
+    int64 next_page_token = 3;
+}
+
+message HeadFileResponse {
+    repeated FileInfo info = 1;
+    int64 next_page_token = 2;
 }
 
 message Files {
