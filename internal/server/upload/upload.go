@@ -191,7 +191,8 @@ func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, erro
 	}
 
 	res := make([]*pb.FileInfo, len(infos))
-	for i, info := range infos {
+	for i := range infos {
+		info := infos[i]  // don't use range value
 		res[i] = &pb.FileInfo{
 			Name:      info.Name,
 			CreatedAt: info.CreatedAt.UnixNano(),
@@ -215,7 +216,7 @@ func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.H
 		return nil, twirp.RequiredArgumentError("limit")
 	}
 	if req.Limit > 10000 {
-		return nil, twirp.InvalidArgumentError("limit", "must be less than 10000")
+		return nil, twirp.InvalidArgumentError("limit", "max is 10000")
 	}
 	if req.NextPageToken < 0 {
 		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
@@ -243,35 +244,6 @@ func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.H
 
 	return &pb.HeadFileResponse{Info: res, NextPageToken: nextToken}, nil
 }
-
-// func (srv *Server) HeadFileLatest(ctx context.Context, f *pb.Filename) (*pb.FileInfo, error) {
-// 	name := f.Name
-// 	if name == "" {
-// 		return nil, twirp.RequiredArgumentError("name")
-// 	}
-// 	if !strings.HasPrefix(name, "/") {
-// 		name = "/" + name
-// 	}
-
-// 	versions, err := srv.db.GetFileVersions(f.Name, 1)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("db GetFileVersions: %w", err)
-// 	}
-// 	if len(versions) == 0 {
-// 		return nil, twirp.NotFoundError(fmt.Sprintf("file %s", f.Name))
-// 	}
-// 	v := versions[0]
-
-// 	info := &pb.FileInfo{
-// 		Name:      v.Name,
-// 		CreatedAt: v.CreatedAt.UnixNano(),
-// 		Size:      v.Size,
-// 		Sum:       v.Sum[:],
-// 	}
-
-// 	return info, nil
-
-// }
 
 type chunk struct {
 	Sequence    uint64
@@ -426,6 +398,37 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	}
 
 	return &pb.FileID{Sum: sum[:]}, nil
+}
+
+func (srv *Server) Rename(ctx context.Context, req *pb.RenameRequest) (*pb.FileID, error) {
+	return nil, nil
+}
+
+func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, error) {
+	if fileID.Sum == nil {
+		return nil, twirp.RequiredArgumentError("sum")
+	}
+	s, err := sum.FromBytes(fileID.Sum)
+	if err != nil {
+		return nil, twirp.InvalidArgumentError("sum", err.Error())
+	}
+
+	if _, err = srv.db.GetFileInfo(s); errors.Is(err, db.ErrNotFound) {
+		return nil, twirp.NotFoundError(fmt.Sprintf("file %x", s))
+	} else if err != nil {
+		return nil, fmt.Errorf("db GetFileInfo: %w", err)
+	}
+
+	key := s.AsHex() + ".file"
+	if err := srv.store.Delete(srv.cfg.Bucket, key); err != nil {
+		return nil, fmt.Errorf("deleting file %s from store: %w", key, err)
+	}
+
+	if err := srv.db.DeleteFile(s); err != nil {
+		return nil, fmt.Errorf("db DeleteFile: %w", err)
+	}
+
+	return &pb.Empty{}, nil
 }
 
 func internalError(w http.ResponseWriter, e error) {

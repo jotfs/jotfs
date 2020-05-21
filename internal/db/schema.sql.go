@@ -23,14 +23,16 @@ CREATE TABLE indexes (
     chunk_size    INTEGER NOT NULL,
     mode          INTEGER NOT NULL,
     offset        INTEGER NOT NULL,
-    size          INTEGER NOT NULL
+    size          INTEGER NOT NULL,
+    refcount      INTEGER NOT NULL
 
     CHECK (sequence >= 0),
     CHECK (length(sum) = 32),
     CHECK (chunk_size > 0),
     CHECK (mode >= 0),
     CHECK (offset >= 0),
-    CHECK (size > 0)
+    CHECK (size > 0),
+    CHECK (refcount >= 0)
 );
 CREATE INDEX indexes_sum_index ON indexes (sum);
 

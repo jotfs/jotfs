@@ -54,6 +54,27 @@ func (a *Adapter) ChunkExists(s sum.Sum) (bool, error) {
 	return false, nil
 }
 
+// GetFileInfo returns the FileInfo for a given file version. Returns ErrNotFound if the
+// file does not exist.
+func (a *Adapter) GetFileInfo(s sum.Sum) (FileInfo, error) {
+	q := `
+	SELECT name, created_at, size
+	FROM file_versions JOIN files on files.id = file_versions.file 
+	WHERE sum = ?
+	`
+	row := a.db.QueryRow(q, s[:])
+	var name string
+	var createdAt int64
+	var size uint64
+	if err := row.Scan(&name, &createdAt, &size); err == sql.ErrNoRows {
+		return FileInfo{}, ErrNotFound
+	} else if err != nil {
+		return FileInfo{}, err
+	}
+
+	return FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: s}, nil
+}
+
 // ChunksExist checks if chunks, identified by their checksum, exist in the file store.
 // Returns a bool for each chunk.
 func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
@@ -145,6 +166,8 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 		return nil
 	})
 }
+
+// func incrementRefcount(tx *sql.Tx, )
 
 func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	q := "SELECT id, file, created_at, num_chunks FROM file_versions WHERE sum = ?"
@@ -273,13 +296,15 @@ type ChunkIndex struct {
 	Block    object.BlockInfo
 }
 
-func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
+// GetFileChunks returns the packfile location of each chunk in a file. Returns
+// ErrNotFound if the file does not exist.
+func (a *Adapter) GetFileChunks(fileID sum.Sum) ([]ChunkIndex, error) {
 
 	// Get the row id for the file version
 	q := "SELECT id, num_chunks FROM file_versions WHERE sum = ?"
 	var verID int64
 	var nChunks int
-	row := a.db.QueryRow(q, s[:])
+	row := a.db.QueryRow(q, fileID[:])
 	if err := row.Scan(&verID, &nChunks); err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	} else if err != nil {
@@ -300,10 +325,8 @@ func (a *Adapter) GetFileChunks(s sum.Sum) ([]ChunkIndex, error) {
 			file_contents 
 			JOIN indexes ON indexes.id = file_contents.idx
 			JOIN packs ON packs.id = indexes.pack
-		WHERE
-			file_contents.file_version = ?
-		ORDER BY
-			file_contents.sequence
+		WHERE file_contents.file_version = ?
+		ORDER BY file_contents.sequence
 	`
 	rows, err := a.db.Query(q, verID)
 	if err != nil {
@@ -376,10 +399,10 @@ func insertPackfile(tx *sql.Tx, index object.PackIndex, id string) (int64, error
 func insertPackBlocks(tx *sql.Tx, packID int64, blocks []object.BlockInfo) error {
 	q := insertOne(
 		"indexes",
-		[]string{"pack", "sequence", "sum", "chunk_size", "mode", "offset", "size"},
+		[]string{"pack", "sequence", "sum", "chunk_size", "mode", "offset", "size", "refcount"},
 	)
 	for _, b := range blocks {
-		_, err := tx.Exec(q, packID, b.Sequence, b.Sum[:], b.ChunkSize, b.Mode, b.Offset, b.Size)
+		_, err := tx.Exec(q, packID, b.Sequence, b.Sum[:], b.ChunkSize, b.Mode, b.Offset, b.Size, 0)
 		if err != nil {
 			return err
 		}
@@ -389,6 +412,7 @@ func insertPackBlocks(tx *sql.Tx, packID int64, blocks []object.BlockInfo) error
 
 func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error {
 	q := insertOne("file_contents", []string{"file_version", "idx", "sequence"})
+	qIncRC := "UPDATE indexes SET refcount = refcount + 1 WHERE id = ?"
 	for _, c := range chunks {
 		idxID, err := getPackIndexID(tx, c.Sum)
 		if err == sql.ErrNoRows {
@@ -398,6 +422,11 @@ func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error 
 		}
 		if _, err = tx.Exec(q, fileVerID, idxID, c.Sequence); err != nil {
 			return err
+		}
+
+		// increment the refence count of the chunk index
+		if _, err = tx.Exec(qIncRC, idxID); err != nil {
+			return fmt.Errorf("incrementing index refcount: %w", err)
 		}
 	}
 	return nil
@@ -438,6 +467,59 @@ func getPackIndexID(tx *sql.Tx, sum sum.Sum) (int64, error) {
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+// DeleteFile deletes a file and decrements all chunks referenced by the file by one.
+// Returns ErrNotFound if the file does not exist.
+func (a *Adapter) DeleteFile(s sum.Sum) error {
+	return a.update(func(tx *sql.Tx) error {
+		// Get the row ID of the file version
+		var verID int64
+		var fileID int64
+		row := tx.QueryRow("SELECT id, file FROM file_versions WHERE sum = ?", s[:])
+		if err := row.Scan(&verID, &fileID); err == sql.ErrNoRows {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+
+		// Decrement the refcount of each chunk referenced by this file by one
+		q := `
+		UPDATE indexes 
+		SET refcount = refcount - 1 
+		WHERE id IN (SELECT idx FROM file_contents WHERE file_version = ?)
+		`
+		if _, err := tx.Exec(q, verID); err != nil {
+			return fmt.Errorf("decrementing index refcount: %w", err)
+		}
+
+		// Delete row from file_version and corresponding rows from file_contents
+		q = "DELETE FROM file_contents WHERE file_version = ?"
+		if _, err := tx.Exec(q, verID); err != nil {
+			return fmt.Errorf("deleting file_contents: %w", err)
+		}
+		q = "DELETE FROM file_versions WHERE id = ?"
+		if _, err := tx.Exec(q, verID); err != nil {
+			return fmt.Errorf("deleting file_versions: %w", err)
+		}
+
+		// Get the number of versions with the same name. If this version is the last,
+		// we can delete the row from the files table
+		q = "SELECT count(*) FROM file_versions WHERE file = ?"
+		row = tx.QueryRow(q, fileID)
+		var numVersions int64
+		if err := row.Scan(&numVersions); err != nil {
+			return err
+		}
+		if numVersions == 0 {
+			q = "DELETE FROM files WHERE id = ?"
+			if _, err := tx.Exec(q, fileID); err != nil {
+				return fmt.Errorf("deleting file: %w", err)
+			}
+		}
+
+		return nil
+	})
 }
 
 func insertOne(table string, cols []string) string {
