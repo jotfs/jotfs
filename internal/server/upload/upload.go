@@ -228,7 +228,8 @@ func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.H
 	}
 
 	res := make([]*pb.FileInfo, len(versions))
-	for i, info := range versions {
+	for i := range versions {
+		info := versions[i]  // don't use range value
 		res[i] = &pb.FileInfo{
 			Name:      info.Name,
 			CreatedAt: info.CreatedAt.UnixNano(),
