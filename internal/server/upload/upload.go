@@ -177,7 +177,7 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 	return &pb.ChunksExistResponse{Exists: exists}, nil
 }
 
-func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
+func (srv *Server) List(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
 	prefix := p.Prefix
 	if prefix == "" {
 		return nil, twirp.RequiredArgumentError("prefix")
@@ -204,7 +204,7 @@ func (srv *Server) ListFiles(ctx context.Context, p *pb.Prefix) (*pb.Files, erro
 	return &pb.Files{Infos: res}, nil
 }
 
-func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.HeadFileResponse, error) {
+func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadResponse, error) {
 	name := req.Name
 	if name == "" {
 		return nil, twirp.RequiredArgumentError("name")
@@ -243,7 +243,7 @@ func (srv *Server) HeadFile(ctx context.Context, req *pb.HeadFileRequest) (*pb.H
 		nextToken = res[len(res)-1].CreatedAt
 	}
 
-	return &pb.HeadFileResponse{Info: res, NextPageToken: nextToken}, nil
+	return &pb.HeadResponse{Info: res, NextPageToken: nextToken}, nil
 }
 
 type chunk struct {
