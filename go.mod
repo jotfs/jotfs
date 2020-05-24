@@ -12,7 +12,8 @@ require (
 	github.com/minio/minio-go/v6 v6.0.53
 	github.com/stretchr/testify v1.5.1
 	github.com/twitchtv/twirp v5.10.1+incompatible
-	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904
-	golang.org/x/sys v0.0.0-20200420163511-1957bb5e6d1f // indirect
+	github.com/zeebo/blake3 v0.0.3
+	golang.org/x/crypto v0.0.0-20200414173820-0848c9571904 // indirect
+	golang.org/x/sys v0.0.0-20200519105757-fe76b779f299 // indirect
 	google.golang.org/protobuf v1.20.1-0.20200309200217-e05f789c0967
 )
