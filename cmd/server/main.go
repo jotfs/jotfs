@@ -216,7 +216,7 @@ func run() error {
 		return fmt.Errorf("database: %v", err)
 	}
 
-	log.Printf("Connecting to store %s ... ", cfg.Store.Endpoint)
+	log.Printf("Connecting to store %s", cfg.Store.Endpoint)
 	store, err := s3.New(s3.Config{
 		Region:     cfg.Store.Region,
 		Endpoint:   cfg.Store.Endpoint,
@@ -228,7 +228,6 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to store: ")
 	}
-	log.Print("done")
 
 	srv := upload.NewServer(adapter, store, upload.Config{
 		Bucket:          cfg.Store.Bucket,
@@ -239,19 +238,47 @@ func run() error {
 
 	mux := http.NewServeMux()
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
-	mux.HandleFunc("/packfile", func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != "POST" {
-			code := http.StatusMethodNotAllowed
-			http.Error(w, http.StatusText(code), code)
-			return
-		}
-		srv.PackfileUploadHandler(w, req)
-	})
+	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
 	log.Printf("Listening on port %d", cfg.Server.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Server.Port), mux)
 
 	return err
+}
+
+// postHandler returns a http handler which returns a 500 error code unless invoked
+// through a POST request.
+func postHandler(handler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != "POST" {
+			code := http.StatusMethodNotAllowed
+			http.Error(w, http.StatusText(code), code)
+			return
+		}
+		handler(w, req)
+	}
+}
+
+// logHandler returns a http handler which logs the status code and execution time of
+// the request.
+func logHandler(handler http.HandlerFunc, name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		start := time.Now()
+		ww := &responseWriter{w, 0}
+		handler(ww, req)
+		elapsedMillis := time.Since(start).Milliseconds()
+		log.Printf("%d IotaFS.%s %dms", ww.statusCode, name, elapsedMillis)
+	}
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (w *responseWriter) WriteHeader(statusCode int) {
+	w.statusCode = statusCode
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func main() {
