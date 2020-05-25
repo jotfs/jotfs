@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/twitchtv/twirp"
+
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/log"
 	"github.com/iotafs/iotafs/internal/object"
 	pb "github.com/iotafs/iotafs/internal/protos/upload"
 	"github.com/iotafs/iotafs/internal/store"
 	"github.com/iotafs/iotafs/internal/sum"
-	"github.com/twitchtv/twirp"
 )
 
 // Config stores the configuration for the Server.
@@ -195,7 +196,7 @@ func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespo
 		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
 	}
 
-	infos, err := srv.db.ListFiles(prefix, req.NextPageToken, req.Limit)
+	infos, err := srv.db.ListFiles(prefix, req.NextPageToken, req.Limit, req.Exclude, req.Include)
 	if err != nil {
 		return nil, err
 	}
@@ -414,10 +415,6 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	}
 
 	return &pb.FileID{Sum: sum[:]}, nil
-}
-
-func (srv *Server) Rename(ctx context.Context, req *pb.RenameRequest) (*pb.FileID, error) {
-	return nil, nil
 }
 
 func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, error) {

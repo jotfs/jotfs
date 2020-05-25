@@ -10,7 +10,6 @@ service IotaFS {
     rpc Head(HeadRequest) returns (HeadResponse);
     rpc Download(FileID) returns (DownloadResponse);
     rpc Copy(CopyRequest) returns (FileID);
-    rpc Rename(RenameRequest) returns (FileID);
     rpc Delete(FileID) returns (Empty);
 }
 
@@ -49,6 +48,8 @@ message ListRequest {
     string prefix = 1;
     uint64 limit = 2;
     int64 next_page_token = 3;
+    string exclude = 4;
+    string include = 5;
 }
 
 message ListResponse {

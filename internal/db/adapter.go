@@ -218,15 +218,27 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	return object.File{Name: name, CreatedAt: time.Unix(0, createdAt), Chunks: chunks}, nil
 }
 
-func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64) ([]FileInfo, error) {
+func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string) ([]FileInfo, error) {
 	q := `
 	SELECT name, created_at, size, sum 
 	FROM files JOIN file_versions ON files.id = file_versions.file
-	WHERE name LIKE ? AND created_at > ?
+	WHERE name LIKE ? AND created_at > ? %s
 	ORDER BY created_at DESC
 	LIMIT ?
 	`
-	rows, err := a.db.Query(q, prefix+"%", offset, limit)
+	var rows *sql.Rows
+	var err error
+	if exclude != "" && include != "" {
+		q = fmt.Sprintf(q, "AND ((NOT (name GLOB ?)) OR name GLOB ?)")
+		rows, err = a.db.Query(q, prefix+"%", offset, exclude, include, limit)
+	} else if exclude != "" {
+		q = fmt.Sprintf(q, "AND NOT name GLOB ?")
+		rows, err = a.db.Query(q, prefix+"%", offset, exclude, limit)
+	} else {
+		q = fmt.Sprintf(q, "")
+		rows, err = a.db.Query(q, prefix+"%", offset, limit)
+	}
+
 	if err != nil {
 		return nil, err
 	}
