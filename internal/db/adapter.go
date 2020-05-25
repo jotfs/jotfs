@@ -218,13 +218,15 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	return object.File{Name: name, CreatedAt: time.Unix(0, createdAt), Chunks: chunks}, nil
 }
 
-func (a *Adapter) ListFiles(prefix string, limit int) ([]FileInfo, error) {
+func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64) ([]FileInfo, error) {
 	q := `
 	SELECT name, created_at, size, sum 
 	FROM files JOIN file_versions ON files.id = file_versions.file
-	WHERE name LIKE ?
+	WHERE name LIKE ? AND created_at > ?
+	ORDER BY created_at DESC
+	LIMIT ?
 	`
-	rows, err := a.db.Query(q, prefix+"%")
+	rows, err := a.db.Query(q, prefix+"%", offset, limit)
 	if err != nil {
 		return nil, err
 	}

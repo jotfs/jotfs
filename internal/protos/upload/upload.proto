@@ -6,7 +6,7 @@ option go_package = "internal/protos/upload";
 service IotaFS {
     rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
     rpc CreateFile(File) returns (FileID);
-    rpc List(Prefix) returns (Files);
+    rpc List(ListRequest) returns (ListResponse);
     rpc Head(HeadRequest) returns (HeadResponse);
     rpc Download(FileID) returns (DownloadResponse);
     rpc Copy(CopyRequest) returns (FileID);
@@ -44,6 +44,18 @@ message RenameRequest {
 message Prefix {
     string prefix = 1;
 }
+
+message ListRequest {
+    string prefix = 1;
+    uint64 limit = 2;
+    int64 next_page_token = 3;
+}
+
+message ListResponse {
+    repeated FileInfo info = 1;
+    int64 next_page_token = 2;
+}
+
 
 message HeadRequest {
     string name = 1;

@@ -177,22 +177,32 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 	return &pb.ChunksExistResponse{Exists: exists}, nil
 }
 
-func (srv *Server) List(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
-	prefix := p.Prefix
+func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
+	prefix := req.Prefix
 	if prefix == "" {
 		return nil, twirp.RequiredArgumentError("prefix")
 	}
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	infos, err := srv.db.ListFiles(prefix, 1000)
+	if req.Limit == 0 {
+		return nil, twirp.RequiredArgumentError("limit")
+	}
+	if req.Limit > 10000 {
+		return nil, twirp.InvalidArgumentError("limit", "max is 10000")
+	}
+	if req.NextPageToken < 0 {
+		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
+	}
+
+	infos, err := srv.db.ListFiles(prefix, req.NextPageToken, req.Limit)
 	if err != nil {
 		return nil, err
 	}
 
 	res := make([]*pb.FileInfo, len(infos))
 	for i := range infos {
-		info := infos[i]  // don't use range value
+		info := infos[i] // don't use range value
 		res[i] = &pb.FileInfo{
 			Name:      info.Name,
 			CreatedAt: info.CreatedAt.UnixNano(),
@@ -201,7 +211,12 @@ func (srv *Server) List(ctx context.Context, p *pb.Prefix) (*pb.Files, error) {
 		}
 	}
 
-	return &pb.Files{Infos: res}, nil
+	nextToken := int64(-1)
+	if uint64(len(res)) == req.Limit && len(res) > 0 {
+		nextToken = res[len(res)-1].CreatedAt
+	}
+
+	return &pb.ListResponse{Info: res, NextPageToken: nextToken}, nil
 }
 
 func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadResponse, error) {
@@ -229,7 +244,7 @@ func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadRespo
 
 	res := make([]*pb.FileInfo, len(versions))
 	for i := range versions {
-		info := versions[i]  // don't use range value
+		info := versions[i] // don't use range value
 		res[i] = &pb.FileInfo{
 			Name:      info.Name,
 			CreatedAt: info.CreatedAt.UnixNano(),
