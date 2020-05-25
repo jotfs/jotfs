@@ -13,7 +13,7 @@ import (
 )
 
 func TestPackIndex(t *testing.T) {
-	db, err := Empty()
+	db, err := EmptyInMemory()
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -86,8 +86,8 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 		strings.Repeat("?, ", len(sums)-1)+"?",
 	)
 	args := make([]interface{}, len(sums))
-	for i, s := range sums {
-		args[i] = s[:]
+	for i := range sums {
+		args[i] = sums[i][:]
 	}
 	rows, err := a.db.Query(q, args...)
 	if err != nil {
@@ -218,24 +218,29 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	return object.File{Name: name, CreatedAt: time.Unix(0, createdAt), Chunks: chunks}, nil
 }
 
-func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string) ([]FileInfo, error) {
+func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string, ascending bool) ([]FileInfo, error) {
 	q := `
 	SELECT name, created_at, size, sum 
 	FROM files JOIN file_versions ON files.id = file_versions.file
 	WHERE name LIKE ? AND created_at > ? %s
-	ORDER BY created_at DESC
+	ORDER BY created_at %s
 	LIMIT ?
 	`
+	ord := "DESC"
+	if ascending {
+		ord = "ASC"
+	}
+
 	var rows *sql.Rows
 	var err error
 	if exclude != "" && include != "" {
-		q = fmt.Sprintf(q, "AND ((NOT (name GLOB ?)) OR name GLOB ?)")
+		q = fmt.Sprintf(q, "AND ((NOT (name GLOB ?)) OR name GLOB ?)", ord)
 		rows, err = a.db.Query(q, prefix+"%", offset, exclude, include, limit)
 	} else if exclude != "" {
-		q = fmt.Sprintf(q, "AND NOT name GLOB ?")
+		q = fmt.Sprintf(q, "AND NOT name GLOB ?", ord)
 		rows, err = a.db.Query(q, prefix+"%", offset, exclude, limit)
 	} else {
-		q = fmt.Sprintf(q, "")
+		q = fmt.Sprintf(q, "", ord)
 		rows, err = a.db.Query(q, prefix+"%", offset, limit)
 	}
 
@@ -264,14 +269,20 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 	return infos, nil
 }
 
-func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64) ([]FileInfo, error) {
+func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascending bool) ([]FileInfo, error) {
 	q := `
 	SELECT created_at, size, sum 
 	FROM files JOIN file_versions ON files.id = file_versions.file
 	WHERE name = ? AND created_at > ?
-	ORDER BY created_at DESC
+	ORDER BY created_at %s
 	LIMIT ?
 	`
+	ord := "DESC"
+	if ascending {
+		ord = "ASC"
+	}
+	q = fmt.Sprintf(q, ord)
+
 	rows, err := a.db.Query(q, name, offset, limit)
 	if err != nil {
 		return nil, err

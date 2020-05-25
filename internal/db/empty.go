@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Empty returns an adapter to a new in-memory database with all tables created.
-func Empty() (*Adapter, error) {
+// EmptyInMemory returns an adapter to a new in-memory database with all tables created.
+func EmptyInMemory() (*Adapter, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -19,6 +19,21 @@ func Empty() (*Adapter, error) {
 	}
 	if err := sdb.Ping(); err != nil {
 		return nil, fmt.Errorf("pinging in-memory SQLite instance: %v", err)
+	}
+	dba := NewAdapter(sdb)
+	if err := dba.InitSchema(); err != nil {
+		return nil, fmt.Errorf("creating db schema: %v", err)
+	}
+	return dba, nil
+}
+
+func EmptyDisk(filename string) (*Adapter, error) {
+	sdb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s", filename))
+	if err != nil {
+		return nil, fmt.Errorf("connecting to SQLite instance: %v", err)
+	}
+	if err := sdb.Ping(); err != nil {
+		return nil, fmt.Errorf("pinging SQLite instance: %v", err)
 	}
 	dba := NewAdapter(sdb)
 	if err := dba.InitSchema(); err != nil {

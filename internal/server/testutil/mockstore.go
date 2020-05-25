@@ -1,6 +1,10 @@
 package testutil
 
-import "github.com/iotafs/iotafs/internal/store"
+import (
+	"time"
+
+	"github.com/iotafs/iotafs/internal/store"
+)
 
 type MockStore struct{}
 
@@ -28,4 +32,8 @@ func (s MockStore) Delete(bucket string, key string) error {
 
 func (s MockStore) Copy(bucket string, from string, to string) error {
 	return nil
+}
+
+func (s MockStore) PresignGetURL(bucket string, key string, expires time.Duration, contentRange *store.Range) (string, error) {
+	return "", nil
 }

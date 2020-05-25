@@ -50,6 +50,7 @@ message ListRequest {
     int64 next_page_token = 3;
     string exclude = 4;
     string include = 5;
+    bool ascending = 6;
 }
 
 message ListResponse {
@@ -62,6 +63,7 @@ message HeadRequest {
     string name = 1;
     uint64 limit = 2;
     int64 next_page_token = 3;
+    bool ascending = 4;
 }
 
 message HeadResponse {

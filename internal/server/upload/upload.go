@@ -19,6 +19,8 @@ import (
 	"github.com/iotafs/iotafs/internal/sum"
 )
 
+const maxFilenameSize = 1024
+
 // Config stores the configuration for the Server.
 type Config struct {
 	// Bucket is the bucket the server saves files to.
@@ -114,8 +116,9 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 	if name == "" {
 		return nil, twirp.RequiredArgumentError("name")
 	}
-	if !strings.HasPrefix(name, "/") {
-		name = "/" + name
+	name = cleanFilename(name)
+	if err := validateFilename(name); err != nil {
+		return nil, twirp.InvalidArgumentError("name", err.Error())
 	}
 
 	chunks := make([]object.Chunk, len(file.Sums))
@@ -183,9 +186,7 @@ func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespo
 	if prefix == "" {
 		return nil, twirp.RequiredArgumentError("prefix")
 	}
-	if !strings.HasPrefix(prefix, "/") {
-		prefix = "/" + prefix
-	}
+	prefix = cleanFilename(prefix)
 	if req.Limit == 0 {
 		return nil, twirp.RequiredArgumentError("limit")
 	}
@@ -196,7 +197,9 @@ func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespo
 		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
 	}
 
-	infos, err := srv.db.ListFiles(prefix, req.NextPageToken, req.Limit, req.Exclude, req.Include)
+	exclude := cleanFilename(req.Exclude)
+	include := cleanFilename(req.Include)
+	infos, err := srv.db.ListFiles(prefix, req.NextPageToken, req.Limit, exclude, include, req.Ascending)
 	if err != nil {
 		return nil, err
 	}
@@ -225,9 +228,7 @@ func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadRespo
 	if name == "" {
 		return nil, twirp.RequiredArgumentError("name")
 	}
-	if !strings.HasPrefix(name, "/") {
-		name = "/" + name
-	}
+	name = cleanFilename(name)
 	if req.Limit == 0 {
 		return nil, twirp.RequiredArgumentError("limit")
 	}
@@ -238,7 +239,7 @@ func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadRespo
 		return nil, twirp.InvalidArgumentError("next_page_token", "cannot be negative")
 	}
 
-	versions, err := srv.db.GetFileVersions(name, req.NextPageToken, req.Limit)
+	versions, err := srv.db.GetFileVersions(name, req.NextPageToken, req.Limit, req.Ascending)
 	if err != nil {
 		return nil, fmt.Errorf("db GetFileVersions: %w", err)
 	}
@@ -382,8 +383,9 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	if dst == "" {
 		return nil, twirp.RequiredArgumentError("dst")
 	}
-	if !strings.HasPrefix(dst, "/") {
-		dst = "/" + dst
+	dst = cleanFilename(dst)
+	if err := validateFilename(dst); err != nil {
+		return nil, twirp.InvalidArgumentError("dst", err.Error())
 	}
 	srcID, err := sum.FromBytes(req.SrcId)
 	if err != nil {
@@ -471,13 +473,26 @@ func putObject(s store.Store, bucket string, key string, data []byte) error {
 	return f.Close()
 }
 
-type countingReader struct {
-	reader    io.Reader
-	bytesRead uint64
+func cleanFilename(name string) string {
+	if name == "" {
+		return name
+	}
+	name = strings.TrimSpace(name)
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
+	}
+	if strings.HasSuffix(name, "/") {
+		name = strings.TrimSuffix(name, "/")
+	}
+	return name
 }
 
-func (r *countingReader) Read(p []byte) (n int, err error) {
-	n, err = r.reader.Read(p)
-	r.bytesRead += uint64(n)
-	return n, err
+func validateFilename(name string) error {
+	if len(name) > maxFilenameSize {
+		return fmt.Errorf("filename exceeds maximum size %d", maxFilenameSize)
+	}
+	if name == "" || name == "/" {
+		return errors.New("invalid filename")
+	}
+	return nil
 }
