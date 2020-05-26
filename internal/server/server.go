@@ -1,4 +1,4 @@
-package upload
+package server
 
 import (
 	"context"
@@ -43,13 +43,9 @@ type Server struct {
 	cfg   Config
 }
 
-// NewServer creates a new Server.
-func NewServer(db *db.Adapter, s store.Store, cfg Config) *Server {
-	return &Server{
-		db:    db,
-		cfg:   cfg,
-		store: s,
-	}
+// New creates a new Server.
+func New(db *db.Adapter, s store.Store, cfg Config) *Server {
+	return &Server{db: db, cfg: cfg, store: s}
 }
 
 // PackfileUploadHandler accepts a Packfile from a client and saves it to the store.
@@ -63,9 +59,15 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	sum, err := getChecksum(req)
+	h := req.Header.Get("x-iota-checksum")
+	if h == "" {
+		http.Error(w, "x-iota-checksum required", http.StatusBadRequest)
+		return
+	}
+	sum, err := sum.FromBase64(h)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		msg := fmt.Sprintf("invalid x-iota-checksum: %v", err)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
@@ -113,7 +115,8 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 	w.WriteHeader(http.StatusCreated)
 }
 
-// CreateFile creates a new file.
+// CreateFile creates a new file. Returns an error if any chunk referenced by the file
+// does not exist.
 func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, error) {
 	name := file.Name
 	if name == "" {
@@ -202,6 +205,14 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 	return &pb.ChunksExistResponse{Exists: exists}, nil
 }
 
+// List returns all versions of files with a given prefix. The response NextPageToken can
+// be used to retrieve the next page of results, unless it has the value -1, in which case
+// no further pages exist. The parameter Limit sets the maximum number of results per
+// page and must be provided. The parameter Exclude may be provided as a glob pattern to
+// exclude files from the response. If Exclude is set, the Include parameter may also
+// be provided to force inclusion of any files excluded by the Exclude pattern. Results
+// are returned in reverse-chronological order of file created date by default. Ascending
+// may be set to true to reverse the order.
 func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
 	prefix := req.Prefix
 	if prefix == "" {
@@ -244,6 +255,8 @@ func (srv *Server) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespo
 	return &pb.ListResponse{Info: res, NextPageToken: nextToken}, nil
 }
 
+// Head returns all versions of a file with a given name. The parameters Limit,
+// NextPageToken and Ascending have the same meaning as in the List method.
 func (srv *Server) Head(ctx context.Context, req *pb.HeadRequest) (*pb.HeadResponse, error) {
 	name := req.Name
 	if name == "" {
@@ -298,6 +311,8 @@ type section struct {
 	end     uint64
 }
 
+// Download returns a collection of URLs to download the data for a file. Each URL
+// contains data for a contiguous section of the file.
 func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadResponse, error) {
 	if id.Sum == nil {
 		return nil, twirp.RequiredArgumentError("sum")
@@ -374,6 +389,7 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 	// Constuct the response
 	rSections := make([]*pb.Section, len(sections))
 	for i, section := range sections {
+		section := section
 		rChunks := make([]*pb.SectionChunk, len(section.chunks))
 		for j, chunk := range section.chunks {
 			rChunks[j] = &pb.SectionChunk{
@@ -396,6 +412,8 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 
 }
 
+// Copy makes a copy of a file and returns its ID. Returns a NotFound error if the file
+// does not exist.
 func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, error) {
 	if req.SrcId == nil {
 		return nil, twirp.RequiredArgumentError("src_id")
@@ -440,6 +458,7 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	return &pb.FileID{Sum: sum[:]}, nil
 }
 
+// Delete removes a file. Returns a NotFound error if the files does not exist.
 func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, error) {
 	if fileID.Sum == nil {
 		return nil, twirp.RequiredArgumentError("sum")
@@ -467,21 +486,11 @@ func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, er
 	return &pb.Empty{}, nil
 }
 
+// internalError writes a generic internal server error message to a HTTP response, and
+// logs the actual error.
 func internalError(w http.ResponseWriter, e error) {
 	http.Error(w, "internal server error", http.StatusInternalServerError)
 	log.Error(e)
-}
-
-func getChecksum(req *http.Request) (sum.Sum, error) {
-	h := req.Header.Get("x-iota-checksum")
-	if h == "" {
-		return sum.Sum{}, errors.New("x-iota-checksum required")
-	}
-	s, err := sum.FromBase64(h)
-	if err != nil {
-		return sum.Sum{}, fmt.Errorf("invalid x-iota-checksum: %v", err)
-	}
-	return s, nil
 }
 
 func putObject(s store.Store, bucket string, key string, data []byte) error {
@@ -494,6 +503,8 @@ func putObject(s store.Store, bucket string, key string, data []byte) error {
 	return f.Close()
 }
 
+// cleanFilename processes a filename to be stored in the database. Trailing slashes are
+// removed and a leading slash is prefixed if not already present.
 func cleanFilename(name string) string {
 	if name == "" {
 		return name
@@ -508,6 +519,7 @@ func cleanFilename(name string) string {
 	return name
 }
 
+// validateFilename returns an error if the file name is invalid.
 func validateFilename(name string) error {
 	if len(name) > maxFilenameSize {
 		return fmt.Errorf("filename exceeds maximum size %d", maxFilenameSize)

@@ -13,7 +13,7 @@ import (
 
 	"github.com/iotafs/iotafs/internal/db"
 	twup "github.com/iotafs/iotafs/internal/protos/upload"
-	"github.com/iotafs/iotafs/internal/server/upload"
+	"github.com/iotafs/iotafs/internal/server"
 	"github.com/iotafs/iotafs/internal/store/s3"
 	"github.com/twitchtv/twirp"
 
@@ -235,7 +235,7 @@ func run() error {
 		log.Printf("File versioning disabled")
 	}
 
-	srv := upload.NewServer(adapter, store, upload.Config{
+	srv := server.New(adapter, store, server.Config{
 		Bucket:            cfg.Store.Bucket,
 		VersioningEnabled: cfg.Server.VersioningEnabled,
 		MaxChunkSize:      8 * miB,

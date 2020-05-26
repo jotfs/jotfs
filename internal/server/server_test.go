@@ -1,4 +1,4 @@
-package upload
+package server
 
 import (
 	"bytes"
@@ -16,7 +16,6 @@ import (
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/object"
 	pb "github.com/iotafs/iotafs/internal/protos/upload"
-	"github.com/iotafs/iotafs/internal/server/testutil"
 	"github.com/iotafs/iotafs/internal/sum"
 	"github.com/twitchtv/twirp"
 
@@ -310,13 +309,13 @@ func testServer(t *testing.T, versioning bool) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := testutil.MockStore{}
+	store := mockStore{}
 	cfg := Config{
 		MaxChunkSize:      1024 * 1024 * 8,
 		MaxPackfileSize:   maxPackfileSize,
 		VersioningEnabled: versioning,
 	}
-	srv := NewServer(adapter, store, cfg)
+	srv := New(adapter, store, cfg)
 	return srv, name
 }
 
