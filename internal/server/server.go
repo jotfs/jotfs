@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/twitchtv/twirp"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/log"
@@ -74,32 +76,49 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 	digest := sum.AsHex()
 	pkey := digest + ".pack"
 	bucket := srv.cfg.Bucket
-	pfile := srv.store.NewFile(bucket, pkey)
+
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	r, pfile := io.Pipe()
+	var g errgroup.Group
+	g.Go(func() error {
+		return srv.store.Put(ctx, bucket, pkey, r)
+	})
 
 	rd := io.TeeReader(io.LimitReader(req.Body, req.ContentLength), pfile)
 
 	index, err := object.LoadPackIndex(rd)
+	fmt.Println("loaded")
 	if err != nil {
 		// TODO: a write error will appear as a read error here because we're using a
 		// TeeReader. Need to distinguish between a malformed client packfile, and a
 		// write failure to the store which should be a http.InternalServerError.
-		log.OnError(pfile.Cancel)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if index.Sum != sum {
-		log.OnError(pfile.Cancel)
 		msg := fmt.Sprintf("provided packfile checksum %x does not match actual checksum %x", sum, index.Sum)
 		http.Error(w, msg, http.StatusBadRequest)
+		return
 	}
+
+	// Close the write side of the pipe so the read side will EOF and the upload goroutine
+	// will terminate
 	if err = pfile.Close(); err != nil {
+		err = fmt.Errorf("closing packfile writer: %w", err)
+		internalError(w, err)
+		return
+	}
+
+	if err = g.Wait(); err != nil {
+		err = fmt.Errorf("uploading packfile to store: %w", err)
 		internalError(w, err)
 		return
 	}
 
 	ikey := digest + ".index"
 	b := index.MarshalBinary()
-	if err = putObject(srv.store, bucket, ikey, b); err != nil {
+	if err = srv.store.Put(ctx, bucket, ikey, bytes.NewReader(b)); err != nil {
 		log.OnError(func() error { return srv.store.Delete(bucket, pkey) })
 		internalError(w, err)
 		return
@@ -162,7 +181,7 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 	sum := sum.Compute(b)
 
 	fkey := sum.AsHex() + ".file"
-	if err := putObject(srv.store, srv.cfg.Bucket, fkey, b); err != nil {
+	if err := srv.store.Put(ctx, srv.cfg.Bucket, fkey, bytes.NewReader(b)); err != nil {
 		return nil, err
 	}
 
@@ -446,7 +465,7 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	sum := sum.Compute(b)
 
 	fkey := sum.AsHex() + ".file"
-	if err := putObject(srv.store, srv.cfg.Bucket, fkey, b); err != nil {
+	if err := srv.store.Put(ctx, srv.cfg.Bucket, fkey, bytes.NewReader(b)); err != nil {
 		return nil, err
 	}
 
@@ -491,16 +510,6 @@ func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, er
 func internalError(w http.ResponseWriter, e error) {
 	http.Error(w, "internal server error", http.StatusInternalServerError)
 	log.Error(e)
-}
-
-func putObject(s store.Store, bucket string, key string, data []byte) error {
-	f := s.NewFile(bucket, key)
-	_, err := f.Write(data)
-	if err != nil {
-		log.OnError(f.Cancel)
-		return err
-	}
-	return f.Close()
 }
 
 // cleanFilename processes a filename to be stored in the database. Trailing slashes are

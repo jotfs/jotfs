@@ -1,6 +1,8 @@
 package s3
 
 import (
+	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -12,35 +14,35 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/iotafs/iotafs/internal/store"
 
-	"github.com/minio/minio-go/v6"
 	"github.com/stretchr/testify/assert"
 )
 
-const bucket = "iotafs-testing"
+const bucket = "iotafs-testing-s3"
 
-func cfg() Config {
-	return Config{
-		Endpoint:   "localhost:9000",
-		AccessKey:  "minioadmin",
-		SecretKey:  "minioadmin",
-		DisableSSL: true,
-		PathStyle:  true,
-	}
+var cfg = Config{
+	Endpoint:   "localhost:9000",
+	AccessKey:  "minioadmin",
+	SecretKey:  "minioadmin",
+	DisableSSL: true,
+	PathStyle:  true,
 }
 
+var s *Store
+
 func TestMain(m *testing.M) {
-	cfg := cfg()
-	client, err := minio.New(cfg.Endpoint, cfg.AccessKey, cfg.SecretKey, !cfg.DisableSSL)
+	var err error
+	s, err = New(cfg)
 	if err != nil {
-		log.Fatalf("connecting to server: %v\n", err)
+		log.Fatal(err)
 	}
-	if err := client.MakeBucket(bucket, ""); err != nil {
-		log.Fatalf("creating bucket %s: %v\n", bucket, err)
+	if err = s.makeBucket(bucket); err != nil {
+		log.Fatal(err)
 	}
 	code := m.Run()
-	if err := dropBucket(client, bucket); err != nil {
+	if err := s.dropBucket(bucket); err != nil {
 		log.Fatalf("dropping bucket %s: %v\n", bucket, err)
 	}
 	os.Exit(code)
@@ -52,103 +54,43 @@ func TestImplements(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	store, err := New(cfg())
-	assert.NoError(t, err)
-	assert.NotNil(t, store)
+	ctx := context.Background()
 
 	// Simple file
 	k0 := randKey()
-	f0 := store.NewFile(bucket, k0)
-	f0.Write([]byte("Hello world!"))
-	err = f0.Close()
+	err := s.Put(ctx, bucket, k0, bytes.NewReader([]byte("Hello world!")))
 	assert.NoError(t, err)
-	assert.NoError(t, store.Delete(bucket, k0))
-
-	// Empty file
-	k1 := randKey()
-	f1 := store.NewFile(bucket, k1)
-	err = f1.Close()
-	assert.NoError(t, err)
-	assert.NoError(t, store.Delete(bucket, k1))
+	assert.NoError(t, s.Delete(bucket, k0))
 }
 
 func TestCopy(t *testing.T) {
-	store, err := New(cfg())
-	assert.NoError(t, err)
+	ctx := context.Background()
 
 	// Create file
 	k0 := randKey()
-	f0 := store.NewFile(bucket, k0)
-	_, err = f0.Write([]byte("Hello world!"))
+	err := s.Put(ctx, bucket, k0, bytes.NewReader([]byte("Hello world!")))
 	assert.NoError(t, err)
-	err = f0.Close()
-	assert.NoError(t, err)
-	defer store.Delete(bucket, k0)
+	defer s.Delete(bucket, k0)
 
 	// Make a copy of the file
 	kCopy := k0 + "-copy"
-	err = store.Copy(bucket, k0, kCopy)
+	err = s.Copy(bucket, k0, kCopy)
 	assert.NoError(t, err)
-	assert.NoError(t, store.Delete(bucket, kCopy))
+	assert.NoError(t, s.Delete(bucket, kCopy))
 
 	// Make copy of non-existent file
-	err = store.Copy(bucket, "i-never-existed", kCopy)
+	err = s.Copy(bucket, "i-never-existed", kCopy)
 	assert.Error(t, err)
-}
-
-func TestCancel(t *testing.T) {
-	store, err := New(cfg())
-	assert.NoError(t, err)
-
-	// Create file and write some data
-	k0 := randKey()
-	f0 := store.NewFile(bucket, k0)
-	_, err = f0.Write([]byte("Hello world!"))
-	assert.NoError(t, err)
-
-	// Cancel the file
-	err = f0.Cancel()
-	assert.NoError(t, err)
-
-	// Close after cancel should return error
-	err = f0.Close()
-	assert.Error(t, err)
-
-	// Cancel again should return error
-	err = f0.Cancel()
-	assert.Error(t, err)
-}
-
-// randKey generates a random object key.
-func randKey() string {
-	b := make([]byte, 10)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-// dropBucket deletes a bucket and its contents.
-func dropBucket(client *minio.Client, bucket string) error {
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-	for obj := range client.ListObjectsV2(bucket, "", true, doneCh) {
-		if err := client.RemoveObject(bucket, obj.Key); err != nil {
-			return err
-		}
-	}
-	return client.RemoveBucket(bucket)
 }
 
 func TestGetPresignedURL(t *testing.T) {
-	s, err := New(cfg())
-	assert.NoError(t, err)
+	ctx := context.Background()
 
 	// Write a test file
 	k := "test.txt"
 	b := []byte(strings.Repeat("Hello World!\n", 100))
-	f := s.NewFile(bucket, k)
-	_, err = f.Write(b)
+	err := s.Put(ctx, bucket, k, bytes.NewReader(b))
 	assert.NoError(t, err)
-	assert.NoError(t, f.Close())
 
 	// Generate a presigned GET url for the first 100 bytes of the file
 	rnge := store.Range{From: 0, To: 99}
@@ -166,4 +108,36 @@ func TestGetPresignedURL(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, b[rnge.From:rnge.To+1], body)
+}
+
+// randKey generates a random object key.
+func randKey() string {
+	b := make([]byte, 10)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func (s *Store) dropBucket(name string) error {
+	resp, err := s.svc.ListObjectsV2(&s3.ListObjectsV2Input{
+		Bucket: &name,
+	})
+	if err != nil {
+		return err
+	}
+	for _, obj := range resp.Contents {
+		if err = s.Delete(name, *obj.Key); err != nil {
+			return err
+		}
+	}
+	_, err = s.svc.DeleteBucket(&s3.DeleteBucketInput{
+		Bucket: &name,
+	})
+	return err
+}
+
+func (s *Store) makeBucket(name string) error {
+	_, err := s.svc.CreateBucket(&s3.CreateBucketInput{
+		Bucket: &name,
+	})
+	return err
 }

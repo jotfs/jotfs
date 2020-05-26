@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"io"
+	"io/ioutil"
 	"time"
 
 	"github.com/iotafs/iotafs/internal/store"
@@ -8,22 +11,9 @@ import (
 
 type mockStore struct{}
 
-type discard struct{}
-
-func (w discard) Write(p []byte) (int, error) {
-	return len(p), nil
-}
-
-func (w discard) Close() error {
-	return nil
-}
-
-func (w discard) Cancel() error {
-	return nil
-}
-
-func (s mockStore) NewFile(bucket string, key string) store.File {
-	return discard{}
+func (s mockStore) Put(ctx context.Context, bucket string, key string, r io.Reader) error {
+	_, err := io.Copy(ioutil.Discard, r)
+	return err
 }
 
 func (s mockStore) Delete(bucket string, key string) error {
