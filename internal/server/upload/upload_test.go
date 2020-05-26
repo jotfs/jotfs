@@ -27,8 +27,10 @@ import (
 
 const maxPackfileSize = 1024 * 1024 * 128
 
+// TODO: test with versioning off
+
 func TestPackfileUploadHandler(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -60,7 +62,7 @@ func TestPackfileUploadHandler(t *testing.T) {
 }
 
 func TestPackfileUploadHandlerBadRequest(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -100,7 +102,7 @@ func TestPackfileUploadHandlerBadRequest(t *testing.T) {
 }
 
 func TestCreateFile(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -150,7 +152,7 @@ func TestCreateFile(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -193,7 +195,7 @@ func TestList(t *testing.T) {
 }
 
 func TestHead(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -229,7 +231,7 @@ func TestHead(t *testing.T) {
 }
 
 func TestDownload(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -251,7 +253,7 @@ func TestDownload(t *testing.T) {
 }
 
 func TestCopy(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -276,7 +278,7 @@ func TestCopy(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	srv, dbname := testServer(t)
+	srv, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -298,7 +300,7 @@ func TestDelete(t *testing.T) {
 	assert.Equal(t, twirp.NotFound, terr.Code())
 }
 
-func testServer(t *testing.T) (*Server, string) {
+func testServer(t *testing.T, versioning bool) (*Server, string) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		t.Fatal(err)
@@ -310,8 +312,9 @@ func testServer(t *testing.T) (*Server, string) {
 	}
 	store := testutil.MockStore{}
 	cfg := Config{
-		MaxChunkSize:    1024 * 1024 * 8,
-		MaxPackfileSize: maxPackfileSize,
+		MaxChunkSize:      1024 * 1024 * 8,
+		MaxPackfileSize:   maxPackfileSize,
+		VersioningEnabled: versioning,
 	}
 	srv := NewServer(adapter, store, cfg)
 	return srv, name

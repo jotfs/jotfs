@@ -11,5 +11,7 @@ func OnError(f func() error) {
 
 // Error logs an error message.
 func Error(e error) {
-	log.Printf("ERROR: %v", e)
+	if e != nil {
+		log.Printf("ERROR: %v", e)
+	}
 }

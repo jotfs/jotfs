@@ -26,6 +26,9 @@ type Config struct {
 	// Bucket is the bucket the server saves files to.
 	Bucket string
 
+	// VersioningEnabled, if set to true, turns on file versioning.
+	VersioningEnabled bool
+
 	// MaxChunkSize is the maximum permitted size of a chunk in bytes.
 	MaxChunkSize uint64
 
@@ -121,6 +124,17 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 		return nil, twirp.InvalidArgumentError("name", err.Error())
 	}
 
+	// Check if this file has a previous version
+	var hasPrev bool
+	prevInfo, err := srv.db.GetLatestFileVersion(name)
+	if errors.Is(err, db.ErrNotFound) {
+		hasPrev = false
+	} else if err != nil {
+		return nil, fmt.Errorf("db GetLatestFileVersion: %w", err)
+	} else {
+		hasPrev = true
+	}
+
 	chunks := make([]object.Chunk, len(file.Sums))
 	for i, s := range file.Sums {
 		sum, err := sum.FromBytes(s)
@@ -140,7 +154,7 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 		chunks[i] = object.Chunk{Sequence: uint64(i), Size: size, Sum: sum}
 	}
 
-	f := object.File{Name: name, Chunks: chunks, CreatedAt: time.Now().UTC()}
+	f := object.File{Name: name, Chunks: chunks, CreatedAt: time.Now().UTC(), Versioned: srv.cfg.VersioningEnabled}
 	b := f.MarshalBinary()
 	sum := sum.Compute(b)
 
@@ -152,6 +166,13 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 	if err := srv.db.InsertFile(f, sum); err != nil {
 		log.OnError(func() error { return srv.store.Delete(srv.cfg.Bucket, fkey) })
 		return nil, err
+	}
+
+	// Delete the previous version if versioning is turned off
+	if hasPrev && !prevInfo.Versioned && !srv.cfg.VersioningEnabled {
+		if _, err = srv.Delete(ctx, &pb.FileID{Sum: prevInfo.Sum[:]}); err != nil {
+			log.Error(err)
+		}
 	}
 
 	return &pb.FileID{Sum: sum[:]}, nil

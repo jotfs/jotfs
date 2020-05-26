@@ -49,16 +49,11 @@ func (a *Adapter) update(f func(tx *sql.Tx) error) error {
 	return tx.Commit()
 }
 
-func (a *Adapter) ChunkExists(s sum.Sum) (bool, error) {
-	// TODO: implement
-	return false, nil
-}
-
 // GetFileInfo returns the FileInfo for a given file version. Returns ErrNotFound if the
 // file does not exist.
 func (a *Adapter) GetFileInfo(s sum.Sum) (FileInfo, error) {
 	q := `
-	SELECT name, created_at, size
+	SELECT name, created_at, size, versioned
 	FROM file_versions JOIN files on files.id = file_versions.file 
 	WHERE sum = ?
 	`
@@ -66,13 +61,36 @@ func (a *Adapter) GetFileInfo(s sum.Sum) (FileInfo, error) {
 	var name string
 	var createdAt int64
 	var size uint64
-	if err := row.Scan(&name, &createdAt, &size); err == sql.ErrNoRows {
+	var vflag int
+	if err := row.Scan(&name, &createdAt, &size, &vflag); err == sql.ErrNoRows {
 		return FileInfo{}, ErrNotFound
 	} else if err != nil {
 		return FileInfo{}, err
 	}
 
-	return FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: s}, nil
+	versioned, err := parseVFlag(vflag)
+	if err != nil {
+		return FileInfo{}, err
+	}
+
+	return FileInfo{
+		Name:      name,
+		CreatedAt: time.Unix(0, createdAt),
+		Size:      size,
+		Sum:       s,
+		Versioned: versioned,
+	}, nil
+}
+
+func parseVFlag(vflag int) (bool, error) {
+	if vflag == 1 {
+		return true, nil
+	}
+	if vflag == 0 {
+		return false, nil
+	}
+	return false, fmt.Errorf("invalid version flag %d", vflag)
+
 }
 
 // ChunksExist checks if chunks, identified by their checksum, exist in the file store.
@@ -167,8 +185,6 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	})
 }
 
-// func incrementRefcount(tx *sql.Tx, )
-
 func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	q := "SELECT id, file, created_at, num_chunks FROM file_versions WHERE sum = ?"
 	row := a.db.QueryRow(q, s[:])
@@ -220,7 +236,7 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 
 func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string, ascending bool) ([]FileInfo, error) {
 	q := `
-	SELECT name, created_at, size, sum 
+	SELECT name, created_at, size, sum, versioned 
 	FROM files JOIN file_versions ON files.id = file_versions.file
 	WHERE name LIKE ? AND created_at > ? %s
 	ORDER BY created_at %s
@@ -252,26 +268,43 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 	var name string
 	var createdAt int64
 	var size uint64
+	var vflag int
 	s := make([]byte, sum.Size)
 	infos := make([]FileInfo, 0)
 	for i := 0; rows.Next(); i++ {
-		if err := rows.Scan(&name, &createdAt, &size, &s); err != nil {
+		if err := rows.Scan(&name, &createdAt, &size, &s, &vflag); err != nil {
 			return nil, err
 		}
 		sum, err := sum.FromBytes(s)
 		if err != nil {
 			return nil, err
 		}
-		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum}
+		versioned, err := parseVFlag(vflag)
+		if err != nil {
+			return nil, err
+		}
+
+		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum, Versioned: versioned}
 		infos = append(infos, info)
 	}
 
 	return infos, nil
 }
 
+func (a *Adapter) GetLatestFileVersion(name string) (FileInfo, error) {
+	versions, err := a.GetFileVersions(name, 0, 1, false)
+	if err != nil {
+		return FileInfo{}, err
+	}
+	if len(versions) == 0 {
+		return FileInfo{}, ErrNotFound
+	}
+	return versions[0], nil
+}
+
 func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascending bool) ([]FileInfo, error) {
 	q := `
-	SELECT created_at, size, sum 
+	SELECT created_at, size, sum, versioned 
 	FROM files JOIN file_versions ON files.id = file_versions.file
 	WHERE name = ? AND created_at > ?
 	ORDER BY created_at %s
@@ -292,16 +325,22 @@ func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascen
 	var createdAt int64
 	var size uint64
 	s := make([]byte, sum.Size)
+	var vflag int
 	infos := make([]FileInfo, 0)
 	for i := 0; rows.Next(); i++ {
-		if err := rows.Scan(&createdAt, &size, &s); err != nil {
+		if err := rows.Scan(&createdAt, &size, &s, &vflag); err != nil {
 			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
 		sum, err := sum.FromBytes(s)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: %w", i, err)
 		}
-		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum}
+		versioned, err := parseVFlag(vflag)
+		if err != nil {
+			return nil, err
+		}
+
+		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum, Versioned: versioned}
 		infos = append(infos, info)
 	}
 
@@ -313,6 +352,7 @@ type FileInfo struct {
 	CreatedAt time.Time
 	Size      uint64
 	Sum       sum.Sum
+	Versioned bool
 }
 
 type ChunkIndex struct {
@@ -458,8 +498,12 @@ func insertFileChunks(tx *sql.Tx, fileVerID int64, chunks []object.Chunk) error 
 }
 
 func insertFileVersion(tx *sql.Tx, fileID int64, file object.File, sum sum.Sum) (int64, error) {
-	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks", "sum"})
-	res, err := tx.Exec(q, fileID, file.CreatedAt.UnixNano(), file.Size(), len(file.Chunks), sum[:])
+	q := insertOne("file_versions", []string{"file", "created_at", "size", "num_chunks", "sum", "versioned"})
+	var vflag int
+	if file.Versioned {
+		vflag = 1
+	}
+	res, err := tx.Exec(q, fileID, file.CreatedAt.UnixNano(), file.Size(), len(file.Chunks), sum[:], vflag)
 	if err != nil {
 		return 0, err
 	}

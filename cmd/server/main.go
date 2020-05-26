@@ -24,15 +24,15 @@ import (
 const (
 	defaultDatabase = "./iotafs.db"
 	defaultPort     = 6776
-	defaultQSize    = 10
 
 	defaultEndpoint = "s3.amazonaws.com"
 	miB             = 1024 * 1024
 )
 
 type serverConfig struct {
-	Port     int    `toml:"port"`
-	Database string `toml:"database"`
+	Port              int    `toml:"port"`
+	Database          string `toml:"database"`
+	VersioningEnabled bool   `toml:"enable_versioning"`
 }
 
 type storeConfig struct {
@@ -229,10 +229,17 @@ func run() error {
 		return fmt.Errorf("connecting to store: ")
 	}
 
+	if cfg.Server.VersioningEnabled {
+		log.Printf("File versioning enabled")
+	} else {
+		log.Printf("File versioning disabled")
+	}
+
 	srv := upload.NewServer(adapter, store, upload.Config{
-		Bucket:          cfg.Store.Bucket,
-		MaxChunkSize:    8 * miB,
-		MaxPackfileSize: 128 * miB,
+		Bucket:            cfg.Store.Bucket,
+		VersioningEnabled: cfg.Server.VersioningEnabled,
+		MaxChunkSize:      8 * miB,
+		MaxPackfileSize:   128 * miB,
 	})
 	srvHandler := twup.NewIotaFSServer(srv, loggingServerHooks())
 

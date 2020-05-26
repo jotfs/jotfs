@@ -1,6 +1,7 @@
 package object
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"time"
@@ -13,10 +14,10 @@ const maxNameSize = 32768
 
 // File represents a file object.
 type File struct {
-	Name string
-	// Version uint
+	Name      string
 	CreatedAt time.Time
 	Chunks    []Chunk
+	Versioned bool
 }
 
 // Chunk stores the information for a chunk within a file object.
@@ -28,11 +29,16 @@ type Chunk struct {
 
 // MarshalBinary writes the binary representation of a file to a writer.
 func (f *File) MarshalBinary() []byte {
+	var vtag uint8
+	if f.Versioned {
+		vtag = 1
+	}
+
 	b := make([]byte, 0)
 	b = append(b, uint64Binary(uint64(len(f.Name)))...)
 	b = append(b, []byte(f.Name)...)
-	// b = append(b, uint64Binary(uint64(f.Version))...)
 	b = append(b, uint64Binary(uint64(f.CreatedAt.UnixNano()))...)
+	b = append(b, vtag)
 	b = append(b, uint64Binary(uint64(len(f.Chunks)))...)
 	buf := make([]byte, 0)
 	for _, c := range f.Chunks {
@@ -63,6 +69,17 @@ func (f *File) UnmarshalBinary(r io.Reader) error {
 		return err
 	}
 
+	var vtag uint8
+	if err := binary.Read(r, binary.LittleEndian, &vtag); err != nil {
+		return fmt.Errorf("decoding versioning tag: %v", err)
+	}
+	var versioned bool
+	if vtag == 1 {
+		versioned = true
+	} else if vtag != 0 {
+		return fmt.Errorf("invalid versioning tag %d", vtag)
+	}
+
 	nChunks, err := getBinaryUint64(r)
 	if err != nil {
 		return err
@@ -80,6 +97,7 @@ func (f *File) UnmarshalBinary(r io.Reader) error {
 	f.Name = string(name)
 	f.CreatedAt = time.Unix(0, int64(createdAtNanos))
 	f.Chunks = chunks
+	f.Versioned = versioned
 
 	return nil
 }

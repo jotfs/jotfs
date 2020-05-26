@@ -49,11 +49,13 @@ CREATE TABLE file_versions (
     size       INTEGER NOT NULL,
     num_chunks INTEGER NOT NULL,
     sum        BLOB NOT NULL,
+    versioned  INTEGER NOT NULL,
 
     CHECK (created_at > 0),
     CHECK (size >= 0),
     CHECK (num_chunks >= 0),
-    CHECK (length(sum) = 32)
+    CHECK (length(sum) = 32),
+    CHECK (versioned = 0 OR versioned = 1)
 );
 CREATE UNIQUE INDEX file_versions_sum_index ON file_versions(sum);
 
