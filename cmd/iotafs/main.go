@@ -264,7 +264,7 @@ func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params
 var configFileName = flag.String(
 	"config",
 	"iotafs.toml",
-	"path to config file (default iotafs.toml)",
+	"path to config file",
 )
 
 func run() error {
