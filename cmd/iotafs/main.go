@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/iotafs/iotafs/internal/db"
-	twup "github.com/iotafs/iotafs/internal/protos/upload"
+	pb "github.com/iotafs/iotafs/internal/protos"
 	"github.com/iotafs/iotafs/internal/server"
 	"github.com/iotafs/iotafs/internal/store"
 	"github.com/iotafs/iotafs/internal/store/s3"
@@ -330,7 +330,7 @@ func run() error {
 		MaxPackfileSize:   maxPackfileSize,
 		Params:            *chunkerParams,
 	})
-	srvHandler := twup.NewIotaFSServer(srv, loggingServerHooks())
+	srvHandler := pb.NewIotaFSServer(srv, loggingServerHooks())
 
 	mux := http.NewServeMux()
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)

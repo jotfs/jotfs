@@ -16,7 +16,7 @@ import (
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/log"
 	"github.com/iotafs/iotafs/internal/object"
-	pb "github.com/iotafs/iotafs/internal/protos/upload"
+	pb "github.com/iotafs/iotafs/internal/protos"
 	"github.com/iotafs/iotafs/internal/store"
 	"github.com/iotafs/iotafs/internal/sum"
 )

@@ -1,5 +1,5 @@
 protos:
-	protoc internal/protos/upload/upload.proto --twirp_out=. --go_out=.
+	protoc internal/protos/api.proto --twirp_out=. --go_out=.
 
 run:
-	go run ./cmd/server
+	go run ./cmd/iotafs

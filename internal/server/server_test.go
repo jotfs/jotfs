@@ -15,7 +15,7 @@ import (
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/object"
-	pb "github.com/iotafs/iotafs/internal/protos/upload"
+	pb "github.com/iotafs/iotafs/internal/protos"
 	"github.com/iotafs/iotafs/internal/sum"
 	"github.com/twitchtv/twirp"
 
