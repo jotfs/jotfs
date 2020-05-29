@@ -11,6 +11,7 @@ service IotaFS {
     rpc Download(FileID) returns (DownloadResponse);
     rpc Copy(CopyRequest) returns (FileID);
     rpc Delete(FileID) returns (Empty);
+    rpc GetChunkerParams(Empty) returns (ChunkerParams);
 }
 
 message ChunksExistRequest {
@@ -106,4 +107,11 @@ message DownloadResponse {
     repeated Section sections = 1;
 }
 
+
+message ChunkerParams {
+    uint64 min_chunk_size = 1;
+    uint64 avg_chunk_size = 2;
+    uint64 max_chunk_size = 3;
+    uint64 normalization = 4;
+}
 

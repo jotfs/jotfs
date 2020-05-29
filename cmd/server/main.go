@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"github.com/iotafs/iotafs/internal/db"
 	twup "github.com/iotafs/iotafs/internal/protos/upload"
 	"github.com/iotafs/iotafs/internal/server"
+	"github.com/iotafs/iotafs/internal/store"
 	"github.com/iotafs/iotafs/internal/store/s3"
 	"github.com/twitchtv/twirp"
 
@@ -25,14 +28,26 @@ const (
 	defaultDatabase = "./iotafs.db"
 	defaultPort     = 6776
 
-	defaultEndpoint = "s3.amazonaws.com"
-	miB             = 1024 * 1024
+	defaultStoreEndpoint = "s3.amazonaws.com"
+
+	kiB = 1024
+	miB = 1024 * kiB
+
+	maxPackfileSize = 128 * miB
+
+	minAvgKib            = 64
+	maxAvgKib            = 64 * 1024 // 64 MiB
+	defaultAvgKib        = 1024      // 1 MiB
+	defaultNormalization = 2
+
+	chunkParamsKey = "params.toml"
 )
 
 type serverConfig struct {
 	Port              int    `toml:"port"`
 	Database          string `toml:"database"`
 	VersioningEnabled bool   `toml:"enable_versioning"`
+	AvgChunkKiB       uint   `toml:"avg_chunk_kib"`
 }
 
 type storeConfig struct {
@@ -112,6 +127,12 @@ func (c serverConfig) validate() error {
 	if c.Database == "" {
 		return requiredFieldError("database")
 	}
+	if c.AvgChunkKiB == 0 {
+		return requiredFieldError("avg_chunk_kib")
+	}
+	if c.AvgChunkKiB < minAvgKib || c.AvgChunkKiB > maxAvgKib {
+		return fmt.Errorf("avg_chunk_kib must be in range %d to %d", minAvgKib, maxAvgKib)
+	}
 	return nil
 }
 
@@ -151,12 +172,16 @@ func (c *serverConfig) setDefaults() {
 	if c.Database == "" {
 		c.Database = defaultDatabase
 	}
+	if c.AvgChunkKiB == 0 {
+		c.AvgChunkKiB = defaultAvgKib
+		log.Printf("Using default average chunk size %d KiB", defaultAvgKib)
+	}
 }
 
 func (c *storeConfig) setDefaults() {
 	if c.Endpoint == "" {
-		c.Endpoint = defaultEndpoint
-		log.Printf("Using default store endpoints %s\n", defaultEndpoint)
+		c.Endpoint = defaultStoreEndpoint
+		log.Printf("Using default store endpoints %s\n", defaultStoreEndpoint)
 	}
 }
 
@@ -190,6 +215,50 @@ func loggingServerHooks() *twirp.ServerHooks {
 	}
 
 	return hooks
+}
+
+// getChunkerParams gets the chunker parameters from the store. Return nil if the file
+// does not exist.
+func getChunkerParams(ctx context.Context, s store.Store, bucket string) (*server.ChunkerParams, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	r, err := s.Get(ctx, bucket, chunkParamsKey)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	var params server.ChunkerParams
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("reading object: %v", err)
+	}
+	if _, err = toml.Decode(string(b), &params); err != nil {
+		return nil, fmt.Errorf("decoding toml: %v", err)
+	}
+
+	return &params, nil
+}
+
+// saveChunkerParams saves the chunker params to the store.
+func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params *server.ChunkerParams) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(params); err != nil {
+		return fmt.Errorf("encoding toml: %v", err)
+	}
+
+	if err := s.Put(ctx, bucket, chunkParamsKey, &buf); err != nil {
+		return fmt.Errorf("putting object to store: %v", err)
+	}
+
+	return nil
 }
 
 var configFileName = flag.String(
@@ -229,6 +298,25 @@ func run() error {
 		return fmt.Errorf("connecting to store: ")
 	}
 
+	// Get the chunking parameters from the store or create the object if it doesn't exist
+	ctx := context.Background()
+	chunkerParams, err := getChunkerParams(ctx, store, cfg.Store.Bucket)
+	if err != nil {
+		return fmt.Errorf("getting chunker params: %v", err)
+	}
+	if chunkerParams == nil {
+		avg := cfg.Server.AvgChunkKiB * kiB
+		chunkerParams = &server.ChunkerParams{
+			MinChunkSize:  avg / 4,
+			AvgChunkSize:  avg,
+			MaxChunkSize:  avg * 4,
+			Normalization: defaultNormalization,
+		}
+		if err = saveChunkerParams(ctx, store, cfg.Store.Bucket, chunkerParams); err != nil {
+			return fmt.Errorf("saving chunker params: %v", err)
+		}
+	}
+
 	if cfg.Server.VersioningEnabled {
 		log.Printf("File versioning enabled")
 	} else {
@@ -238,8 +326,9 @@ func run() error {
 	srv := server.New(adapter, store, server.Config{
 		Bucket:            cfg.Store.Bucket,
 		VersioningEnabled: cfg.Server.VersioningEnabled,
-		MaxChunkSize:      8 * miB,
-		MaxPackfileSize:   128 * miB,
+		MaxChunkSize:      uint64(chunkerParams.MaxChunkSize),
+		MaxPackfileSize:   maxPackfileSize,
+		Params:            *chunkerParams,
 	})
 	srvHandler := twup.NewIotaFSServer(srv, loggingServerHooks())
 

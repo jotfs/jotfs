@@ -36,6 +36,16 @@ type Config struct {
 
 	// MaxPackfileSize is the maximum permitted size of a packfile in bytes.
 	MaxPackfileSize uint64
+
+	Params ChunkerParams
+}
+
+// ChunkerParams store the parameters that should be used to chunk files for a server.
+type ChunkerParams struct {
+	MinChunkSize  uint `toml:"min_chunk_size"`
+	AvgChunkSize  uint `toml:"avg_chunk_size"`
+	MaxChunkSize  uint `toml:"max_chunk_size"`
+	Normalization uint `toml:"normalization"`
 }
 
 // Server implements the Api interface specified in upload.proto.
@@ -77,18 +87,20 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 	pkey := digest + ".pack"
 	bucket := srv.cfg.Bucket
 
+	// Launch a background goroutine to upload the packfile to the store as it's being
+	// validated down below
 	ctx, cancel := context.WithCancel(req.Context())
 	defer cancel()
 	r, pfile := io.Pipe()
 	var g errgroup.Group
 	g.Go(func() error {
-		return srv.store.Put(ctx, bucket, pkey, r)
+		err := srv.store.Put(ctx, bucket, pkey, r)
+		return mergeErrors(err, r.CloseWithError(err))
 	})
 
 	rd := io.TeeReader(io.LimitReader(req.Body, req.ContentLength), pfile)
 
 	index, err := object.LoadPackIndex(rd)
-	fmt.Println("loaded")
 	if err != nil {
 		// TODO: a write error will appear as a read error here because we're using a
 		// TeeReader. Need to distinguish between a malformed client packfile, and a
@@ -119,14 +131,14 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 	ikey := digest + ".index"
 	b := index.MarshalBinary()
 	if err = srv.store.Put(ctx, bucket, ikey, bytes.NewReader(b)); err != nil {
-		log.OnError(func() error { return srv.store.Delete(bucket, pkey) })
+		err = mergeErrors(err, srv.store.Delete(bucket, pkey))
 		internalError(w, err)
 		return
 	}
 
 	if err = srv.db.InsertPackIndex(index, digest); err != nil {
-		log.OnError(func() error { return srv.store.Delete(bucket, pkey) })
-		log.OnError(func() error { return srv.store.Delete(bucket, ikey) })
+		err = mergeErrors(err, srv.store.Delete(bucket, pkey))
+		err = mergeErrors(err, srv.store.Delete(bucket, ikey))
 		internalError(w, err)
 		return
 	}
@@ -186,7 +198,7 @@ func (srv *Server) CreateFile(ctx context.Context, file *pb.File) (*pb.FileID, e
 	}
 
 	if err := srv.db.InsertFile(f, sum); err != nil {
-		log.OnError(func() error { return srv.store.Delete(srv.cfg.Bucket, fkey) })
+		err = mergeErrors(err, srv.store.Delete(srv.cfg.Bucket, fkey))
 		return nil, err
 	}
 
@@ -470,7 +482,7 @@ func (srv *Server) Copy(ctx context.Context, req *pb.CopyRequest) (*pb.FileID, e
 	}
 
 	if err := srv.db.InsertFile(f, sum); err != nil {
-		log.OnError(func() error { return srv.store.Delete(srv.cfg.Bucket, fkey) })
+		err = mergeErrors(err, srv.store.Delete(srv.cfg.Bucket, fkey))
 		return nil, fmt.Errorf("inserting file: %w", err)
 	}
 
@@ -505,6 +517,18 @@ func (srv *Server) Delete(ctx context.Context, fileID *pb.FileID) (*pb.Empty, er
 	return &pb.Empty{}, nil
 }
 
+// GetChunkerParams returns the chunking parameters that clients should use to chunk
+// files for this server.
+func (srv *Server) GetChunkerParams(ctx context.Context, _ *pb.Empty) (*pb.ChunkerParams, error) {
+	p := srv.cfg.Params
+	return &pb.ChunkerParams{
+		MinChunkSize:  uint64(p.MinChunkSize),
+		AvgChunkSize:  uint64(p.AvgChunkSize),
+		MaxChunkSize:  uint64(p.MaxChunkSize),
+		Normalization: uint64(p.Normalization),
+	}, nil
+}
+
 // internalError writes a generic internal server error message to a HTTP response, and
 // logs the actual error.
 func internalError(w http.ResponseWriter, e error) {
@@ -537,4 +561,17 @@ func validateFilename(name string) error {
 		return errors.New("invalid filename")
 	}
 	return nil
+}
+
+func mergeErrors(err, minor error) error {
+	if err == nil && minor == nil {
+		return nil
+	}
+	if minor == nil {
+		return err
+	}
+	if err == nil {
+		return minor
+	}
+	return fmt.Errorf("%w; %v", err, minor)
 }

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/ioutil"
@@ -26,4 +27,9 @@ func (s mockStore) Copy(bucket string, from string, to string) error {
 
 func (s mockStore) PresignGetURL(bucket string, key string, expires time.Duration, contentRange *store.Range) (string, error) {
 	return "", nil
+}
+
+func (s mockStore) Get(ctx context.Context, bucket string, key string) (io.ReadCloser, error) {
+	var b bytes.Buffer
+	return ioutil.NopCloser(&b), nil
 }

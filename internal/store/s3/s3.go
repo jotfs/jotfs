@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -58,6 +59,24 @@ func (s *Store) Put(ctx context.Context, bucket string, key string, r io.Reader)
 		Key:    &key,
 	})
 	return err
+}
+
+// Get returns an object from the store as an io.ReadCloser. Returns store.ErrNotFound
+// if the object does not exist.
+func (s *Store) Get(ctx context.Context, bucket string, key string) (io.ReadCloser, error) {
+	resp, err := s.svc.GetObjectWithContext(ctx, &s3.GetObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+	})
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() == s3.ErrCodeNoSuchKey {
+			return nil, store.ErrNotFound
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
 }
 
 // Copy makes a copy of an object.
