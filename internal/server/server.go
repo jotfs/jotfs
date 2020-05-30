@@ -136,7 +136,7 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if err = srv.db.InsertPackIndex(index, digest); err != nil {
+	if err = srv.db.InsertPackIndex(index); err != nil {
 		err = mergeErrors(err, srv.store.Delete(bucket, pkey))
 		err = mergeErrors(err, srv.store.Delete(bucket, ikey))
 		internalError(w, err)

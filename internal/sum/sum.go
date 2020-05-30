@@ -25,6 +25,15 @@ func FromBytes(b []byte) (Sum, error) {
 	return s, nil
 }
 
+// FromHex converts a hex string to a Sum.
+func FromHex(s string) (Sum, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return Sum{}, err
+	}
+	return FromBytes(b)
+}
+
 // FromBase64 converts a base64 encoded string to a Sum.
 func FromBase64(s string) (Sum, error) {
 	b, err := base64.StdEncoding.DecodeString(s)

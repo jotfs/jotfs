@@ -75,7 +75,7 @@ func (a *Adapter) GetFileInfo(s sum.Sum) (FileInfo, error) {
 
 	return FileInfo{
 		Name:      name,
-		CreatedAt: time.Unix(0, createdAt),
+		CreatedAt: time.Unix(0, createdAt).UTC(),
 		Size:      size,
 		Sum:       s,
 		Versioned: versioned,
@@ -152,9 +152,12 @@ func (a *Adapter) GetChunkSize(s sum.Sum) (uint64, error) {
 }
 
 // InsertPackIndex saves a PackIndex to the database.
-func (a *Adapter) InsertPackIndex(index object.PackIndex, id string) error {
+func (a *Adapter) InsertPackIndex(index object.PackIndex) error {
+	if len(index.Blocks) == 0 {
+		return fmt.Errorf("pack index is empty")
+	}
 	return a.update(func(tx *sql.Tx) error {
-		packID, err := insertPackfile(tx, index, id)
+		packID, err := insertPackfile(tx, index)
 		if err != nil {
 			return fmt.Errorf("inserting packfile: %w", err)
 		}
@@ -186,18 +189,23 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 }
 
 func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
-	q := "SELECT id, file, created_at, num_chunks FROM file_versions WHERE sum = ?"
+	q := "SELECT id, file, created_at, num_chunks, versioned FROM file_versions WHERE sum = ?"
 	row := a.db.QueryRow(q, s[:])
 	var versionID int64
 	var fileID int64
 	var createdAt int64
 	var numChunks uint64
-	err := row.Scan(&versionID, &fileID, &createdAt, &numChunks)
+	var vflag int
+	err := row.Scan(&versionID, &fileID, &createdAt, &numChunks, &vflag)
 	if err == sql.ErrNoRows {
 		return object.File{}, ErrNotFound
 	}
 	if err != nil {
 		return object.File{}, err
+	}
+	versioned, err := parseVFlag(vflag)
+	if err != nil {
+		return object.File{}, fmt.Errorf("invalid version flag: %d", vflag)
 	}
 
 	q = "SELECT name FROM files WHERE id = ?"
@@ -231,7 +239,12 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 		chunks = append(chunks, object.Chunk{Sequence: seq, Size: size, Sum: sum})
 	}
 
-	return object.File{Name: name, CreatedAt: time.Unix(0, createdAt), Chunks: chunks}, nil
+	return object.File{
+		Name:      name,
+		CreatedAt: time.Unix(0, createdAt).UTC(),
+		Chunks:    chunks,
+		Versioned: versioned,
+	}, nil
 }
 
 func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string, ascending bool) ([]FileInfo, error) {
@@ -284,7 +297,13 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 			return nil, err
 		}
 
-		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum, Versioned: versioned}
+		info := FileInfo{
+			Name: name, 
+			CreatedAt: time.Unix(0, createdAt).UTC(), 
+			Size: size, 
+			Sum: sum, 
+			Versioned: versioned,
+		}
 		infos = append(infos, info)
 	}
 
@@ -340,7 +359,13 @@ func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascen
 			return nil, err
 		}
 
-		info := FileInfo{Name: name, CreatedAt: time.Unix(0, createdAt), Size: size, Sum: sum, Versioned: versioned}
+		info := FileInfo{
+			Name: name, 
+			CreatedAt: time.Unix(0, createdAt).UTC(), 
+			Size: size, 
+			Sum: sum, 
+			Versioned: versioned,
+		}
 		infos = append(infos, info)
 	}
 
@@ -452,9 +477,9 @@ func (a *Adapter) GetFileChunks(fileID sum.Sum) ([]ChunkIndex, error) {
 	return chunks, nil
 }
 
-func insertPackfile(tx *sql.Tx, index object.PackIndex, id string) (int64, error) {
-	q := insertOne("packs", []string{"sum", "num_chunks", "size", "file_id"})
-	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size(), id)
+func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
+	q := insertOne("packs", []string{"sum", "num_chunks", "size"})
+	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size())
 	if err != nil {
 		return 0, err
 	}
@@ -597,14 +622,5 @@ func insertOne(table string, cols []string) string {
 	return fmt.Sprintf(
 		"INSERT INTO %s (%s) VALUES %s",
 		table, strings.Join(cols, ","), v,
-	)
-}
-
-func insertMany(table string, cols []string, n int) string {
-	v := strings.Repeat("?,", len(cols)-1)
-	v = "(" + v + "?),"
-	return fmt.Sprintf(
-		"INSERT INTO %s (%s) VALUES %s%s",
-		table, strings.Join(cols, ","), strings.Repeat(v, n-1), v[:len(v)-1],
 	)
 }
