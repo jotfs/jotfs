@@ -261,10 +261,9 @@ func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params
 	return nil
 }
 
-var configFileName = flag.String(
-	"config",
-	"iotafs.toml",
-	"path to config file",
+var (
+	configFileName = flag.String("config", "iotafs.toml", "path to config file")
+	dbName = flag.String("db", "", "override the database file path")
 )
 
 func run() error {
@@ -275,6 +274,11 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("reading config: %v", err)
 	}
+
+	if *dbName != "" {
+		cfg.Server.Database = *dbName
+	}
+
 	if err := cfg.validate(); err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
