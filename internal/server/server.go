@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -220,8 +221,8 @@ func (srv *Server) ChunksExist(ctx context.Context, req *pb.ChunksExistRequest) 
 	}
 
 	sums := make([]sum.Sum, len(req.Sums))
-	for i, b := range req.Sums {
-		s, err := sum.FromBytes(b)
+	for i := range req.Sums {
+		s, err := sum.FromBytes(req.Sums[i])
 		if err != nil {
 			return nil, twirp.InvalidArgumentError("sums", err.Error())
 		}
@@ -543,6 +544,7 @@ func cleanFilename(name string) string {
 		return name
 	}
 	name = strings.TrimSpace(name)
+	name = path.Clean(name)
 	if !strings.HasPrefix(name, "/") {
 		name = "/" + name
 	}

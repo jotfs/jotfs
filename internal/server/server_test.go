@@ -299,6 +299,25 @@ func TestDelete(t *testing.T) {
 	assert.Equal(t, twirp.NotFound, terr.Code())
 }
 
+func TestCleanFilename(t *testing.T) {
+	tests := []struct {
+		input string
+		output string
+	}{
+		{"/tmp/data.txt", "/tmp/data.txt"},
+		{"tmp/data.txt/", "/tmp/data.txt"},
+		{"", ""},
+		{"data.txt", "/data.txt"},
+		{"/data.txt", "/data.txt"},
+		{"//tmp/data.txt", "/tmp/data.txt"},
+	}
+
+	for i, test := range tests {
+		assert.Equal(t, test.output, cleanFilename(test.input), i)
+	}
+
+}
+
 func testServer(t *testing.T, versioning bool) (*Server, string) {
 	id, err := uuid.NewRandom()
 	if err != nil {
