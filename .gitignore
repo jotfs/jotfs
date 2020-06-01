@@ -2,4 +2,5 @@
 **/iotafs.toml
 .vscode
 simulator/data
-simulator/downloads
+simulator/bin
+simulator/test-*

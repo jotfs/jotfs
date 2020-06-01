@@ -3,14 +3,40 @@ import os
 import hashlib
 import random
 import tempfile
+import sqlite3
+import time
+import shutil
+
+import boto3
+import toml
 
 
 DIR = os.path.dirname(__file__)
 DATA_DIR = os.path.join(DIR, "data")
-DOWNLOADS_DIR = os.path.join(DIR, "downloads")
+TEST_DIR = os.path.join(DIR, f"test-{int(time.time() * 1000)}")
+DOWNLOADS_DIR = os.path.join(TEST_DIR, "downloads")
+MINIO_DIR = os.path.join(TEST_DIR, "minio")
+CFG = toml.load("config.toml")
+BUCKET = CFG["store"]["bucket"]
+DBNAME = os.path.join(TEST_DIR, CFG["server"]["database"])
+
+session = boto3.session.Session()
+s3 = session.client(
+    service_name="s3",
+    aws_access_key_id=CFG["store"]["access_key"],
+    aws_secret_access_key=CFG["store"]["secret_key"],
+    endpoint_url=f"http://{CFG['store']['endpoint']}",
+)
+
+
+if not os.path.exists(TEST_DIR):
+    os.mkdir(TEST_DIR)
 
 if not os.path.exists(DOWNLOADS_DIR):
     os.mkdir(DOWNLOADS_DIR)
+
+if not os.path.exists(MINIO_DIR):
+    os.mkdir(MINIO_DIR)
 
 
 def upload_file(name):
@@ -51,6 +77,21 @@ def assemble_file(names):
     return fpath, md5.digest().hex()
 
 
+def check_pack_sizes():
+    """
+    Checks that the size of each packfile in the S3 store matches the corresponding size
+    recorded in the database.
+    """
+    conn = sqlite3.connect(DBNAME)
+    c = conn.cursor()
+    for row in c.execute("SELECT lower(hex(sum)), size FROM packs"):
+        checksum, size = row
+        resp = s3.head_object(Bucket=BUCKET, Key=f"{checksum}.pack")
+        length = resp["ContentLength"]
+        if length != size:
+            raise ValueError(f"pack {checksum}: expected size {size} but actual size is {length}")
+
+
 def main():
     base_files = os.listdir(DATA_DIR)
 
@@ -75,8 +116,25 @@ def main():
             md5.update(chunk)
         
         os.remove(dst)
+    
+    # Validation checks
+    check_pack_sizes()
+
+
+def setup():
+    """Starts the minio & iotafs servers."""
+    minio_p = subprocess.Popen(["./bin/minio", "server", "--quiet", "--address", CFG["store"]["endpoint"], MINIO_DIR])
+    s3.create_bucket(Bucket=BUCKET)
+    iotafs_p = subprocess.Popen(["./bin/iotafs", "-config", "config.toml", "-db", DBNAME])
+    return [minio_p, iotafs_p]
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        processes = setup()
+        main()
+        shutil.rmtree(TEST_DIR)
+    finally:
+        for p in processes:
+            p.kill()
 
