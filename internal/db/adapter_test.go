@@ -34,14 +34,13 @@ var block1 = object.BlockInfo{
 }
 
 var s, _ = sum.FromHex("3418bd8fd971059a773ac36af9e4160f7c2aa410ccefdb4fcabe1a2ff27975e7")
-var index = object.PackIndex{Sum: s, Blocks: []object.BlockInfo{block0, block1}}
+var index = object.PackIndex{Sum: s, Blocks: []object.BlockInfo{block0, block1}, Size: 100}
 
 func TestPackIndex(t *testing.T) {
 	db, err := EmptyInMemory()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
 
 	// InsertPackIndex test
 	assert.NoError(t, db.InsertPackIndex(index))
