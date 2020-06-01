@@ -9,6 +9,7 @@ import shutil
 
 import boto3
 import toml
+import blake3
 
 
 DIR = os.path.dirname(__file__)
@@ -92,6 +93,26 @@ def check_pack_sizes():
             raise ValueError(f"pack {checksum}: expected size {size} but actual size is {length}")
 
 
+def check_pack_checksums():
+    """
+    Checks that the checksum of each packfile in the S3 store matches the corresponging
+    checksum stored in the database.
+    """
+    conn = sqlite3.connect(DBNAME)
+    c = conn.cursor()
+    for row in c.execute("SELECT lower(hex(sum)) FROM packs"):
+        checksum = row[0]
+        res = s3.get_object(Bucket=BUCKET, Key=f"{checksum}.pack")
+        body = res["Body"]
+        h = blake3.blake3()
+        for chunk in iter(lambda: body.read(4096), b""):
+            h.update(chunk)
+        
+        c = h.hexdigest()
+        if c != checksum:
+            raise ValueError("pack {checksum}: checksum {c} does not match")
+
+
 def main():
     base_files = os.listdir(DATA_DIR)
 
@@ -119,6 +140,7 @@ def main():
     
     # Validation checks
     check_pack_sizes()
+    check_pack_checksums()
 
 
 def setup():
