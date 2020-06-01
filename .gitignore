@@ -1,2 +1,5 @@
 *.db
 **/iotafs.toml
+.vscode
+simulator/data
+simulator/downloads
