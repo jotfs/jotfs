@@ -159,7 +159,7 @@ func LoadPackIndex(r io.Reader) (PackIndex, error) {
 		idx = append(idx, info)
 	}
 
-	return PackIndex{Blocks: idx, Sum: phash.Sum()}, nil
+	return PackIndex{Blocks: idx, Sum: phash.Sum(), Size: cr.bytesRead}, nil
 }
 
 func makeBlock(data []byte, s sum.Sum, mode compress.Mode) ([]byte, error) {

@@ -479,7 +479,7 @@ func (a *Adapter) GetFileChunks(fileID sum.Sum) ([]ChunkIndex, error) {
 
 func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
 	q := insertOne("packs", []string{"sum", "num_chunks", "size"})
-	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size())
+	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size)
 	if err != nil {
 		return 0, err
 	}

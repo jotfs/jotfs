@@ -35,15 +35,10 @@ type PackIndex struct {
 	Blocks []BlockInfo
 	// Sum is the checksum of the packfile corresponding to the index.
 	Sum sum.Sum
-}
-
-// Size returns the byte-size of the packfile corresponding to the index.
-func (p PackIndex) Size() uint64 {
-	size := uint64(0)
-	for _, b := range p.Blocks {
-		size += b.Size
-	}
-	return size
+	// Size is the size of the packfile underlying the index. This will not equal the
+	// sum of the sizes of all blocks in the index because the file contains extra
+	// metadata.
+	Size uint64
 }
 
 // MarshalBinary converts a PackIndex to its binary representation.

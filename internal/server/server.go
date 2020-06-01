@@ -381,7 +381,7 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 					chunks:  chunks,
 					packSum: packSum,
 					start:   blockStart.Offset,
-					end:     blockEnd.Offset + blockEnd.Size,
+					end:     blockEnd.Offset + blockEnd.Size - 1,
 				})
 			}
 
@@ -401,7 +401,7 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 		chunks:  chunks,
 		packSum: packSum,
 		start:   blockStart.Offset,
-		end:     blockEnd.Offset + blockEnd.Size,
+		end:     blockEnd.Offset + blockEnd.Size - 1,
 	})
 
 	// Generate a pre-signed URL to download the data for each section
