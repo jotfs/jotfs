@@ -8,9 +8,9 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/iotafs/iotafs/internal/db"
@@ -22,6 +22,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -85,11 +87,11 @@ func openDB(filename string) (*db.Adapter, error) {
 		return nil, fmt.Errorf("opening file %s: %v", filename, err)
 	}
 	if exists {
-		log.Printf("Using existing database %s\n", filename)
+		logger.Info().Msgf("Using existing database %s", filename)
 	} else {
-		log.Printf("Creating new database %s\n", filename)
+		logger.Info().Msgf("Creating new database %s", filename)
 	}
-	sqldb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s", filename))
+	sqldb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_fk=true", filename))
 	if err != nil {
 		return nil, err
 	}
@@ -174,14 +176,14 @@ func (c *serverConfig) setDefaults() {
 	}
 	if c.AvgChunkKiB == 0 {
 		c.AvgChunkKiB = defaultAvgKib
-		log.Printf("Using default average chunk size %d KiB", defaultAvgKib)
+		logger.Info().Msgf("Using default average chunk size %d KiB", defaultAvgKib)
 	}
 }
 
 func (c *storeConfig) setDefaults() {
 	if c.Endpoint == "" {
 		c.Endpoint = defaultStoreEndpoint
-		log.Printf("Using default store endpoints %s\n", defaultStoreEndpoint)
+		logger.Info().Msgf("Using default store endpoint %s", defaultStoreEndpoint)
 	}
 }
 
@@ -196,22 +198,52 @@ func loggingServerHooks() *twirp.ServerHooks {
 	// Define a key type to keep context.WithValue happy
 	type key int
 	const receivedAtKey key = 1
+	const msgKey key = 2
+	const twirpCodeKey key = 3
 
 	hooks.RequestReceived = func(ctx context.Context) (context.Context, error) {
 		ctx = context.WithValue(ctx, receivedAtKey, time.Now())
 		return ctx, nil
 	}
 
+	hooks.Error = func(ctx context.Context, err twirp.Error) context.Context {
+		ctx = context.WithValue(ctx, msgKey, err.Msg())
+		ctx = context.WithValue(ctx, twirpCodeKey, string(err.Code()))
+		return ctx
+	}
+
 	hooks.ResponseSent = func(ctx context.Context) {
-		service, _ := twirp.ServiceName(ctx)
 		method, _ := twirp.MethodName(ctx)
 		code, _ := twirp.StatusCode(ctx)
-		receivedAt, ok := ctx.Value("receivedAt").(time.Time)
+		receivedAt, ok := ctx.Value(receivedAtKey).(time.Time)
 		var timeMillis int64
 		if ok {
 			timeMillis = time.Now().Sub(receivedAt).Milliseconds()
 		}
-		log.Printf("%s %s.%s %dms", code, service, method, timeMillis)
+
+		status, _ := strconv.Atoi(code)
+
+		zctx := logger.With().
+			Str("method", method).
+			Int("status", status).
+			Int("elapsed", int(timeMillis))
+
+		if code, ok := ctx.Value(twirpCodeKey).(string); ok {
+			zctx.Str("code", code)
+		}
+		var msg string
+		if m, ok := ctx.Value(msgKey).(string); ok {
+			msg = m
+		}
+		rpcLogger := zctx.Logger()
+
+		if 200 <= status && status < 300 {
+			rpcLogger.Info().Msg(msg)
+		} else if 400 <= status && status < 400 {
+			rpcLogger.Warn().Msg(msg)
+		} else {
+			rpcLogger.Error().Msg(msg)
+		}
 	}
 
 	return hooks
@@ -263,11 +295,21 @@ func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params
 
 var (
 	configFileName = flag.String("config", "iotafs.toml", "path to config file")
-	dbName = flag.String("db", "", "override the database file path")
+	dbName         = flag.String("db", "", "override the database file path")
+	debug          = flag.Bool("debug", false, "output debug logs")
 )
+
+var logger zerolog.Logger
 
 func run() error {
 	flag.Parse()
+
+	// Configure the logger
+	if *debug {
+		logger = log.Output(zerolog.NewConsoleWriter()).Level(zerolog.DebugLevel)
+	} else {
+		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	}
 
 	// Load and validate the config
 	cfg, err := readConfig(*configFileName)
@@ -289,7 +331,7 @@ func run() error {
 		return fmt.Errorf("database: %v", err)
 	}
 
-	log.Printf("Connecting to store %s", cfg.Store.Endpoint)
+	logger.Info().Msgf("Connecting to store %s", cfg.Store.Endpoint)
 	store, err := s3.New(s3.Config{
 		Region:     cfg.Store.Region,
 		Endpoint:   cfg.Store.Endpoint,
@@ -322,9 +364,9 @@ func run() error {
 	}
 
 	if cfg.Server.VersioningEnabled {
-		log.Printf("File versioning enabled")
+		logger.Info().Msg("File versioning enabled")
 	} else {
-		log.Printf("File versioning disabled")
+		logger.Info().Msg("File versioning disabled")
 	}
 
 	srv := server.New(adapter, store, server.Config{
@@ -334,13 +376,14 @@ func run() error {
 		MaxPackfileSize:   maxPackfileSize,
 		Params:            *chunkerParams,
 	})
+	srv.SetLogger(logger)
 	srvHandler := pb.NewIotaFSServer(srv, loggingServerHooks())
 
 	mux := http.NewServeMux()
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
 	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
-	log.Printf("Listening on port %d", cfg.Server.Port)
+	logger.Info().Msgf("Listening on port %d", cfg.Server.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Server.Port), mux)
 
 	return err
@@ -364,16 +407,30 @@ func postHandler(handler http.HandlerFunc) http.HandlerFunc {
 func logHandler(handler http.HandlerFunc, name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
-		ww := &responseWriter{w, 0}
+		ww := &responseWriter{w, 0, ""}
 		handler(ww, req)
 		elapsedMillis := time.Since(start).Milliseconds()
-		log.Printf("%d IotaFS.%s %dms", ww.statusCode, name, elapsedMillis)
+
+		rpcLogger := logger.With().
+			Str("method", name).
+			Int("status", ww.statusCode).
+			Int("elapsed", int(elapsedMillis)).
+			Logger()
+
+		if 200 <= ww.statusCode && ww.statusCode < 300 {
+			rpcLogger.Info().Msg("")
+		} else if 400 <= ww.statusCode && ww.statusCode < 400 {
+			rpcLogger.Warn().Msg("")
+		} else {
+			rpcLogger.Error().Msg("")
+		}
 	}
 }
 
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
+	errMsg     string
 }
 
 func (w *responseWriter) WriteHeader(statusCode int) {
@@ -381,10 +438,17 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+func (w *responseWriter) Write(p []byte) (int, error) {
+	if w.statusCode >= 400 {
+		w.errMsg = string(p)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
 func main() {
 	err := run()
 	if err != nil {
-		log.Fatal(err)
+		logger.Error().Msg(err.Error())
 		os.Exit(1)
 	}
 	os.Exit(0)

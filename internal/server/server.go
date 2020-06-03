@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/twitchtv/twirp"
 	"golang.org/x/sync/errgroup"
 
@@ -51,14 +53,20 @@ type ChunkerParams struct {
 
 // Server implements the Api interface specified in upload.proto.
 type Server struct {
-	db    *db.Adapter
-	store store.Store
-	cfg   Config
+	db     *db.Adapter
+	store  store.Store
+	cfg    Config
+	logger zerolog.Logger
 }
 
 // New creates a new Server.
 func New(db *db.Adapter, s store.Store, cfg Config) *Server {
-	return &Server{db: db, cfg: cfg, store: s}
+	logger := zerolog.New(ioutil.Discard).Level(zerolog.Disabled)
+	return &Server{db: db, cfg: cfg, store: s, logger: logger}
+}
+
+func (srv *Server) SetLogger(logger zerolog.Logger) {
+	srv.logger = logger
 }
 
 // PackfileUploadHandler accepts a Packfile from a client and saves it to the store.
