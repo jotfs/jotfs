@@ -10,6 +10,7 @@ require (
 	github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0
 	github.com/google/uuid v1.1.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
+	github.com/rs/xid v1.2.1
 	github.com/rs/zerolog v1.19.0
 	github.com/stretchr/testify v1.5.1
 	github.com/twitchtv/twirp v5.10.1+incompatible

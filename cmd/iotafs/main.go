@@ -22,8 +22,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/rs/xid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 const (
@@ -197,49 +197,52 @@ func loggingServerHooks() *twirp.ServerHooks {
 
 	// Define a key type to keep context.WithValue happy
 	type key int
-	const receivedAtKey key = 1
-	const msgKey key = 2
-	const twirpCodeKey key = 3
+	const (
+		receivedAtKey key = iota + 1
+		msgKey
+		reqIDKey
+	)
 
 	hooks.RequestReceived = func(ctx context.Context) (context.Context, error) {
+		reqID := xid.New().String()
+		twirp.SetHTTPResponseHeader(ctx, "x-iota-request-id", reqID)
+		ctx = context.WithValue(ctx, reqIDKey, xid.New().String())
 		ctx = context.WithValue(ctx, receivedAtKey, time.Now())
 		return ctx, nil
 	}
 
 	hooks.Error = func(ctx context.Context, err twirp.Error) context.Context {
 		ctx = context.WithValue(ctx, msgKey, err.Msg())
-		ctx = context.WithValue(ctx, twirpCodeKey, string(err.Code()))
 		return ctx
 	}
 
 	hooks.ResponseSent = func(ctx context.Context) {
-		method, _ := twirp.MethodName(ctx)
-		code, _ := twirp.StatusCode(ctx)
-		receivedAt, ok := ctx.Value(receivedAtKey).(time.Time)
-		var timeMillis int64
-		if ok {
-			timeMillis = time.Now().Sub(receivedAt).Milliseconds()
+		var reqID string
+		if v := ctx.Value(reqIDKey); v != nil {
+			reqID = v.(string)
 		}
-
-		status, _ := strconv.Atoi(code)
-
-		zctx := logger.With().
-			Str("method", method).
-			Int("status", status).
-			Int("elapsed", int(timeMillis))
-
-		if code, ok := ctx.Value(twirpCodeKey).(string); ok {
-			zctx.Str("code", code)
+		var elapsed time.Duration
+		if v := ctx.Value(receivedAtKey); v != nil {
+			elapsed = time.Since(v.(time.Time))
 		}
 		var msg string
-		if m, ok := ctx.Value(msgKey).(string); ok {
-			msg = m
+		if v := ctx.Value(msgKey); v != nil {
+			msg = v.(string)
 		}
-		rpcLogger := zctx.Logger()
+		method, _ := twirp.MethodName(ctx)
+		code, _ := twirp.StatusCode(ctx)
+		status, _ := strconv.Atoi(code)
+
+		rpcLogger := logger.With().
+			Str("method", method).
+			Int("status", status).
+			Int64("elapsed", elapsed.Milliseconds()).
+			Str("id", reqID).
+			Logger()
 
 		if 200 <= status && status < 300 {
 			rpcLogger.Info().Msg(msg)
-		} else if 400 <= status && status < 400 {
+		} else if 400 <= status && status < 500 {
 			rpcLogger.Warn().Msg(msg)
 		} else {
 			rpcLogger.Error().Msg(msg)
@@ -306,7 +309,7 @@ func run() error {
 
 	// Configure the logger
 	if *debug {
-		logger = log.Output(zerolog.NewConsoleWriter()).Level(zerolog.DebugLevel)
+		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
 	} else {
 		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 	}
@@ -410,16 +413,20 @@ func logHandler(handler http.HandlerFunc, name string) http.HandlerFunc {
 		ww := &responseWriter{w, 0, ""}
 		handler(ww, req)
 		elapsedMillis := time.Since(start).Milliseconds()
+		reqID := xid.New().String()
+
+		w.Header().Set("x-iota-request-id", reqID)
 
 		rpcLogger := logger.With().
 			Str("method", name).
 			Int("status", ww.statusCode).
 			Int("elapsed", int(elapsedMillis)).
+			Str("id", reqID).
 			Logger()
 
 		if 200 <= ww.statusCode && ww.statusCode < 300 {
 			rpcLogger.Info().Msg("")
-		} else if 400 <= ww.statusCode && ww.statusCode < 400 {
+		} else if 400 <= ww.statusCode && ww.statusCode < 500 {
 			rpcLogger.Warn().Msg("")
 		} else {
 			rpcLogger.Error().Msg("")
