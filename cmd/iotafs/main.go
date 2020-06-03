@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultDatabase = "./iotafs.db"
-	defaultPort     = 6776
+	defaultPort     = 6777
 
 	defaultStoreEndpoint = "s3.amazonaws.com"
 
