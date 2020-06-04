@@ -133,6 +133,33 @@ def check_pack_checksums():
             raise ValueError("pack {checksum}: checksum {c} does not match")
 
 
+def check_db_files(names):
+    """Checks that each file in the database is in the set names."""
+    conn = sqlite3.connect(DBNAME)
+    c = conn.cursor()
+    db_names = []
+    for row in c.execute("SELECT name FROM files"):
+        db_names.append(row[0])
+
+    names = sorted(names)
+    db_names = sorted(db_names)
+    if names != db_names:
+        raise ValueError(f"file names don't match\n{names}\n{db_names}")
+
+
+def download_and_validate_checksum(name, checksum):
+    """Downloads a file and validates its MD5 checksum."""
+    dst = os.path.join(DOWNLOADS_DIR, os.path.basename(name))
+    download_file(src=name, dst=dst)
+    md5 = hashlib.md5()
+    for chunk in chunked_reader(dst):
+        md5.update(chunk)
+    dl_checksum = md5.digest().hex()
+    if dl_checksum != checksum:
+        raise ValueError(f"expected checksum {checksum} but received {dl_checksum}")
+    os.remove(dst)
+
+
 def run():
     base_files = os.listdir(DATA_DIR)
 
@@ -140,7 +167,7 @@ def run():
     uploaded = []
 
     # Upload files
-    for i in range(5):
+    for i in range(10):
         files = random.choices(base_files, k=10)
         name, checksum = assemble_file(files)
         upload_file(name)
@@ -149,19 +176,18 @@ def run():
  
     # Download files
     for name, checksum in uploaded:
-        dst = os.path.join(DOWNLOADS_DIR, os.path.basename(name))
-        download_file(src=name, dst=dst)
-        md5 = hashlib.md5()
-        for chunk in chunked_reader(dst):
-            md5.update(chunk)
-        os.remove(dst)
+        download_and_validate_checksum(name, checksum)
 
     # Validation checks
     check_pack_sizes()
     check_pack_checksums()
+    check_db_files([u[0] for u in uploaded])
 
-    # Delete all files
-    for name, _ in uploaded:
+    # Delete all files except for the last two. This should force the vacuum to rebalance
+    # some packfiles.
+    to_delete = uploaded[:-2]
+    remaining = uploaded[-2:]
+    for name, _ in to_delete:
         delete_file(name)
 
     # Run a vacuum and wait for it to complete
@@ -174,6 +200,11 @@ def run():
         time.sleep(1)
     if status != "SUCCEEDED":
         raise ValueError(f"vacuum failed {status}")
+
+    # Check that the remaining files can still be downloaded after the vacuum
+    check_db_files([u[0] for u in remaining])
+    for name, checksum in remaining:
+        download_and_validate_checksum(name, checksum)
 
 
 def setup():

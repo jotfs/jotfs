@@ -563,19 +563,24 @@ func (srv *Server) StartVacuum(ctx context.Context, _ *pb.Empty) (*pb.VacuumID, 
 		// Don't use the request context because it will be cancelled when the parent
 		// returns
 		ctx := context.Background()
-		srv.logger.Info().Msg("Manual vacuum initiated")
+
+		srv.logger.Info().Str("id", id).Msg("Manual vacuum initiated")
+		start := time.Now()
+
 		err := srv.runVacuum(ctx, time.Now())
 		if err != nil {
 			srv.logger.Error().Msgf("vacuum failed: %v", err)
 			if err = srv.db.UpdateVacuum(id, time.Now().UTC(), db.VacuumFailed); err != nil {
-				srv.logger.Error().Msg(err.Error())
+				srv.logger.Error().Str("id", id).Msg(err.Error())
 			}
 			return
 		}
-		srv.logger.Info().Msg("Vacuum complete")
 		if err = srv.db.UpdateVacuum(id, time.Now().UTC(), db.VacuumOK); err != nil {
 			srv.logger.Error().Msg(err.Error())
 		}
+
+		elapsed := time.Since(start).Milliseconds()
+		srv.logger.Info().Str("id", id).Int64("elapsed", elapsed).Msg("Vacuum complete")
 	}()
 	return &pb.VacuumID{Id: id}, nil
 }

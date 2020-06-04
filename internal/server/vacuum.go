@@ -51,6 +51,7 @@ func (srv *Server) runVacuum(ctx context.Context, createdBefore time.Time) error
 		}
 
 		srv.db.DeletePackIndex(index.Sum)
+		srv.logger.Debug().Msgf("vacuum deleted packfile %x", index.Sum)
 	}
 
 	return nil
