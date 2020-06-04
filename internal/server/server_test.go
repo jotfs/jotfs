@@ -13,16 +13,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/db"
 	"github.com/iotafs/iotafs/internal/object"
 	pb "github.com/iotafs/iotafs/internal/protos"
 	"github.com/iotafs/iotafs/internal/sum"
+
+	"github.com/google/uuid"
 	"github.com/twitchtv/twirp"
-
 	"github.com/stretchr/testify/assert"
-
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -379,6 +378,15 @@ func TestVacuum(t *testing.T) {
 	// Error if download f1
 	_, err = srv.Download(ctx, f1)
 	assert.True(t, isTwirpError(err, twirp.NotFound))
+}
+
+func TestServerStats(t *testing.T) {
+	srv, _, dbname := testServer(t, true)
+	defer os.Remove(dbname)
+
+	ctx := context.Background()
+	_, err := srv.ServerStats(ctx, &pb.Empty{})
+	assert.NoError(t, err)
 }
 
 func TestMergeErrors(t *testing.T) {

@@ -876,13 +876,13 @@ func (a *Adapter) GetServerStats() (Stats, error) {
 	}
 
 	var totalFilesSize uint64
-	row = a.db.QueryRow("SELECT sum(size) FROM file_versions")
+	row = a.db.QueryRow("SELECT coalesce(sum(size), 0) FROM file_versions")
 	if err := row.Scan(&totalFilesSize); err != nil {
 		return Stats{}, err
 	}
 
 	var totalDataSize uint64
-	row = a.db.QueryRow("SELECT sum(size) FROM indexes")
+	row = a.db.QueryRow("SELECT coalesce(sum(size), 0) FROM indexes")
 	if err := row.Scan(&totalDataSize); err != nil {
 		return Stats{}, err
 	}
