@@ -602,6 +602,20 @@ func (srv *Server) VacuumStatus(ctx context.Context, id *pb.VacuumID) (*pb.Vacuu
 	}, nil
 }
 
+// ServerStats returns summary statistics for the server.
+func (srv *Server) ServerStats(ctx context.Context, _ *pb.Empty) (*pb.Stats, error) {
+	stats, err := srv.db.GetServerStats()
+	if err != nil {
+		return nil, fmt.Errorf("db GetServerStats: %w", err)
+	}
+	return &pb.Stats{
+		NumFiles:        stats.NumFiles,
+		NumFileVersions: stats.NumFileVersions,
+		TotalFilesSize:  stats.TotalFilesSize,
+		TotalDataSize:   stats.TotalDataSize,
+	}, nil
+}
+
 // internalError writes a generic internal server error message to a HTTP response, and
 // logs the actual error.
 func internalError(w http.ResponseWriter, e error) {

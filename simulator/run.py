@@ -44,35 +44,44 @@ if not os.path.exists(MINIO_DIR):
     os.mkdir(MINIO_DIR)
 
 
+cmd_preamble = ["iota", "--endpoint", ENDPOINT]
+
+
 def upload_file(name):
     """Uploads a file using the iota CLI tool."""
-    subprocess.check_output(["iota", "--endpoint", ENDPOINT, "cp", name, f"iota://{name}"])
+    subprocess.check_output(cmd_preamble + ["cp", name, f"iota://{name}"])
 
 
 def download_file(src, dst):
     """Downloads a file using the iota CLI tool."""
-    subprocess.check_output(["iota", "--endpoint", ENDPOINT, "cp", f"iota://{src}", dst])
+    subprocess.check_output(cmd_preamble + ["cp", f"iota://{src}", dst])
 
 def delete_file(name):
     """Deletes a file using the iota CLI tool."""
-    subprocess.check_output(["iota", "--endpoint", ENDPOINT, "rm", name])
+    subprocess.check_output(cmd_preamble + ["rm", name])
 
 def vacuum():
     """
     Runs a manual vacuum on the server using the iota CLI tool. Returns the vacuum ID.
     """
-    out = subprocess.check_output(["iota", "--endpoint", ENDPOINT, "admin", "start-vacuum"])
+    out = subprocess.check_output(cmd_preamble + ["admin", "start-vacuum"])
     out = out.decode()
     m = re.match(r'^vacuum ([a-zA-Z0-9]+)', out)
     if m:
         return m.group(1)
     raise ValueError(f"unable to find vacuum ID in output: {out}")
 
-def vacuum_status(vacid):
+def vacuum_status(vac_id):
     """Gets the status of a vacuum"""
-    out = subprocess.check_output(["iota", "--endpoint", ENDPOINT, "admin", "vacuum-status", "--id", vacid])
+    out = subprocess.check_output(cmd_preamble + ["admin", "vacuum-status", "--id", vac_id])
     out = out.decode()
     return out.split(' ')[0].strip()
+
+
+def server_stats():
+    """Gets the server stats."""
+    out = subprocess.check_output(cmd_preamble + ["admin", "stats"])
+    return out.decode()
 
 
 def chunked_reader(name):
@@ -184,6 +193,8 @@ def run(n):
     check_pack_sizes()
     check_pack_checksums()
     check_db_files({u[0] for u in uploaded})
+
+    print(server_stats())
 
     # Delete all files except for the last two. This should force the vacuum to rebalance
     # some packfiles.

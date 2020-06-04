@@ -615,16 +615,6 @@ func (a *Adapter) DeleteFile(s sum.Sum) error {
 			return err
 		}
 
-		// // Decrement the refcount of each chunk referenced by this file by one
-		// q := `
-		// UPDATE indexes
-		// SET refcount = refcount - 1
-		// WHERE id IN (SELECT idx FROM file_contents WHERE file_version = ?)
-		// `
-		// if _, err := tx.Exec(q, verID); err != nil {
-		// 	return fmt.Errorf("decrementing index refcount: %w", err)
-		// }
-
 		q := "SELECT idx, count(*) FROM file_contents WHERE file_version = ? GROUP BY idx"
 		rows, err := tx.Query(q, verID)
 		if err != nil {
@@ -723,7 +713,7 @@ func (a *Adapter) GetZeroRefcount(createdBefore time.Time) ([]ZeroRefcount, erro
 			slice = append(slice, seq)
 			indexIDs = append(indexIDs, indexID)
 		}
-		if len(slice) > 0 {  // Don't forget the last slice
+		if len(slice) > 0 { // Don't forget the last slice
 			seqs := make([]uint64, len(slice))
 			copy(seqs, slice)
 			result = append(result, ZeroRefcount{prevSum, seqs})
@@ -842,6 +832,41 @@ func (a *Adapter) GetVacuum(id string) (Vacuum, error) {
 		return Vacuum{}, err
 	}
 	return Vacuum{id, VacuumStatus(status), startedAt, completedAt}, nil
+}
+
+type Stats struct {
+	NumFiles        uint64
+	NumFileVersions uint64
+	TotalFilesSize   uint64
+	TotalDataSize   uint64
+}
+
+func (a *Adapter) GetServerStats() (Stats, error) {
+	var numFiles uint64
+	row := a.db.QueryRow("SELECT count(*) FROM files")
+	if err := row.Scan(&numFiles); err != nil {
+		return Stats{}, err
+	}
+
+	var numFileVersions uint64
+	row = a.db.QueryRow("SELECT count(*) FROM file_versions")
+	if err := row.Scan(&numFileVersions); err != nil {
+		return Stats{}, err
+	}
+
+	var totalFilesSize uint64
+	row = a.db.QueryRow("SELECT sum(size) FROM file_versions")
+	if err := row.Scan(&totalFilesSize); err != nil {
+		return Stats{}, err
+	}
+
+	var totalDataSize uint64
+	row = a.db.QueryRow("SELECT sum(size) FROM indexes")
+	if err := row.Scan(&totalDataSize); err != nil {
+		return Stats{}, err
+	}
+
+	return Stats{numFiles, numFileVersions, totalFilesSize, totalDataSize}, nil
 }
 
 func insertOne(table string, cols []string) string {
