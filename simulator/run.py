@@ -7,6 +7,7 @@ import sqlite3
 import time
 import shutil
 import re
+import argparse
 
 import boto3
 import toml
@@ -127,7 +128,7 @@ def check_pack_checksums():
         h = blake3.blake3()
         for chunk in iter(lambda: body.read(4096), b""):
             h.update(chunk)
-        
+
         c = h.hexdigest()
         if c != checksum:
             raise ValueError("pack {checksum}: checksum {c} does not match")
@@ -160,20 +161,21 @@ def download_and_validate_checksum(name, checksum):
     os.remove(dst)
 
 
-def run():
+def run(n):
+    """Run the tests with n files."""
     base_files = os.listdir(DATA_DIR)
 
     # Keep track of files we have uploaded
     uploaded = []
 
     # Upload files
-    for i in range(10):
-        files = random.choices(base_files, k=10)
+    for _ in range(n):
+        files = random.choices(base_files, k=random.randint(1, 15))
         name, checksum = assemble_file(files)
         upload_file(name)
         os.remove(name)
         uploaded.append((name, checksum))
- 
+
     # Download files
     for name, checksum in uploaded:
         download_and_validate_checksum(name, checksum)
@@ -181,7 +183,7 @@ def run():
     # Validation checks
     check_pack_sizes()
     check_pack_checksums()
-    check_db_files([u[0] for u in uploaded])
+    check_db_files({u[0] for u in uploaded})
 
     # Delete all files except for the last two. This should force the vacuum to rebalance
     # some packfiles.
@@ -202,7 +204,7 @@ def run():
         raise ValueError(f"vacuum failed {status}")
 
     # Check that the remaining files can still be downloaded after the vacuum
-    check_db_files([u[0] for u in remaining])
+    check_db_files({u[0] for u in remaining})
     for name, checksum in remaining:
         download_and_validate_checksum(name, checksum)
 
@@ -224,10 +226,19 @@ def setup():
 
 
 def main():
+    parser = argparse.ArgumentParser(description="execute IotaFS integration tests")
+    parser.add_argument("-n", type=int, help="number of files to generate", default=10)
+    parser.add_argument("--seed", type=int, help="random number generator seed", default=1)
+    args = parser.parse_args()
+
+    random.seed(args.seed)
+    print(f"Seed = {args.seed}")
+    print(f"n = {args.n}")
+
     processes = []
     try:
         processes = setup()
-        run()
+        run(args.n)
         shutil.rmtree(TEST_DIR)
     finally:
         for p in processes:
