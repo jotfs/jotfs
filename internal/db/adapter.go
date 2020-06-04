@@ -149,6 +149,9 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 		}
 		exists[s] = true
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	result := make([]bool, len(sums))
 	for i, s := range sums {
@@ -265,6 +268,9 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 		}
 		chunks = append(chunks, object.Chunk{Sequence: seq, Size: size, Sum: sum})
 	}
+	if err := rows.Err(); err != nil {
+		return object.File{}, err
+	}
 
 	return object.File{
 		Name:      name,
@@ -338,6 +344,9 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 		}
 		infos = append(infos, info)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
 	return infos, nil
 }
@@ -403,6 +412,9 @@ func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascen
 			Versioned: versioned,
 		}
 		infos = append(infos, info)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return infos, nil
@@ -510,6 +522,9 @@ func (a *Adapter) GetFileChunks(fileID sum.Sum) ([]ChunkIndex, error) {
 				Mode:      cmode,
 			},
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return chunks, nil
@@ -632,6 +647,9 @@ func (a *Adapter) DeleteFile(s sum.Sum) error {
 				return err
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
 
 		// Delete row from file_version and corresponding rows from file_contents
 		q = "DELETE FROM file_contents WHERE file_version = ?"
@@ -718,6 +736,9 @@ func (a *Adapter) GetZeroRefcount(createdBefore time.Time) ([]ZeroRefcount, erro
 			copy(seqs, slice)
 			result = append(result, ZeroRefcount{prevSum, seqs})
 
+		}
+		if err := rows.Err(); err != nil {
+			return err
 		}
 
 		// Set the delete marker on all blocks picked out
