@@ -13,7 +13,7 @@ func EmptyInMemory() (*Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	sdb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=memory", id.String()))
+	sdb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=memory&_fk=on", id.String()))
 	if err != nil {
 		return nil, fmt.Errorf("connecting to in-memory SQLite instance: %v", err)
 	}
@@ -28,7 +28,7 @@ func EmptyInMemory() (*Adapter, error) {
 }
 
 func EmptyDisk(filename string) (*Adapter, error) {
-	sdb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s", filename))
+	sdb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_fk=on", filename))
 	if err != nil {
 		return nil, fmt.Errorf("connecting to SQLite instance: %v", err)
 	}

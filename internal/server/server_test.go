@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/iotafs/iotafs/internal/compress"
@@ -29,7 +31,7 @@ const maxPackfileSize = 1024 * 1024 * 128
 // TODO: test with versioning off
 
 func TestPackfileUploadHandler(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -61,7 +63,7 @@ func TestPackfileUploadHandler(t *testing.T) {
 }
 
 func TestPackfileUploadHandlerBadRequest(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -101,7 +103,7 @@ func TestPackfileUploadHandlerBadRequest(t *testing.T) {
 }
 
 func TestCreateFile(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	s := sum.Compute(packfile)
@@ -151,7 +153,7 @@ func TestCreateFile(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -194,7 +196,7 @@ func TestList(t *testing.T) {
 }
 
 func TestHead(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -230,7 +232,7 @@ func TestHead(t *testing.T) {
 }
 
 func TestDownload(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -244,15 +246,11 @@ func TestDownload(t *testing.T) {
 
 	// Error if file doesn't exist
 	resp, err = srv.Download(ctx, &pb.FileID{Sum: make([]byte, sum.Size)})
-	assert.Error(t, err)
-	assert.Nil(t, resp)
-	terr, ok := err.(twirp.Error)
-	assert.True(t, ok)
-	assert.Equal(t, twirp.NotFound, terr.Code())
+	assert.True(t, isTwirpError(err, twirp.NotFound))
 }
 
 func TestCopy(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -268,16 +266,12 @@ func TestCopy(t *testing.T) {
 	assert.Equal(t, []string{"/data/test2.txt"}, getNames(lresp.Info))
 
 	// Error if file does not exist
-	resp, err = srv.Copy(ctx, &pb.CopyRequest{SrcId: make([]byte, sum.Size), Dst: "abc"})
-	assert.Error(t, err)
-	assert.Nil(t, resp)
-	terr, ok := err.(twirp.Error)
-	assert.True(t, ok)
-	assert.Equal(t, twirp.NotFound, terr.Code())
+	_, err = srv.Copy(ctx, &pb.CopyRequest{SrcId: make([]byte, sum.Size), Dst: "abc"})
+	assert.True(t, isTwirpError(err, twirp.NotFound))
 }
 
 func TestDelete(t *testing.T) {
-	srv, dbname := testServer(t, true)
+	srv, _, dbname := testServer(t, true)
 	defer os.Remove(dbname)
 	packfile := genTestPackfile(t)
 	uploadPackfile(t, srv, packfile)
@@ -293,15 +287,12 @@ func TestDelete(t *testing.T) {
 
 	// Error if file does not exist
 	_, err = srv.Delete(ctx, &pb.FileID{Sum: make([]byte, sum.Size)})
-	assert.Error(t, err)
-	terr, ok := err.(twirp.Error)
-	assert.True(t, ok)
-	assert.Equal(t, twirp.NotFound, terr.Code())
+	assert.True(t, isTwirpError(err, twirp.NotFound))
 }
 
 func TestCleanFilename(t *testing.T) {
 	tests := []struct {
-		input string
+		input  string
 		output string
 	}{
 		{"/tmp/data.txt", "/tmp/data.txt"},
@@ -315,10 +306,105 @@ func TestCleanFilename(t *testing.T) {
 	for i, test := range tests {
 		assert.Equal(t, test.output, cleanFilename(test.input), i)
 	}
+}
+
+func TestGetChunkerParams(t *testing.T) {
+	srv, _, dbname := testServer(t, true)
+	defer os.Remove(dbname)
+
+	ctx := context.Background()
+	params, err := srv.GetChunkerParams(ctx, &pb.Empty{})
+	assert.NoError(t, err)
+	assert.NotNil(t, params)
+}
+
+func TestVacuumEmpty(t *testing.T) {
+	srv, _, dbname := testServer(t, true)
+	defer os.Remove(dbname)
+
+	// Start vacuum
+	ctx := context.Background()
+	id, err := srv.StartVacuum(ctx, &pb.Empty{})
+	assert.NoError(t, err)
+
+	// Get Vacuum
+	_, err = srv.VacuumStatus(ctx, id)
+	assert.NoError(t, err)
+
+	// Error if vaccuum does not exist
+	_, err = srv.VacuumStatus(ctx, &pb.VacuumID{Id: "abc"})
+	assert.True(t, isTwirpError(err, twirp.NotFound))
 
 }
 
-func testServer(t *testing.T, versioning bool) (*Server, string) {
+func TestVacuum(t *testing.T) {
+	srv, _, dbname := testServer(t, true)
+	defer os.Remove(dbname)
+	packfile := genTestPackfile(t)
+	uploadPackfile(t, srv, packfile)
+
+	// Create 2 files:
+	// File 1: contains a & b
+	// File 2: contains just a
+	// If we delete file 1 and run a vacuum we should be left with a packfile containing
+	// just data a
+	ctx := context.Background()
+	f1, err := srv.CreateFile(ctx, &pb.File{
+		Name: "file1",
+		Sums: [][]byte{aSum[:], bSum[:]},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f2, err := srv.CreateFile(ctx, &pb.File{
+		Name: "file2",
+		Sums: [][]byte{aSum[:]},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = srv.Delete(ctx, f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Run the vacuum and wait for it to complete
+	err = srv.runVacuum(ctx, time.Now().UTC())
+	assert.NoError(t, err)
+
+	// Should be able to download f2
+	_, err = srv.Download(ctx, f2)
+	assert.NoError(t, err)
+
+	// Error if download f1
+	_, err = srv.Download(ctx, f1)
+	assert.True(t, isTwirpError(err, twirp.NotFound))
+}
+
+func TestMergeErrors(t *testing.T) {
+	err1 := errors.New("1")
+	err2 := errors.New("2")
+
+	tests := []struct {
+		e error
+		minor error
+		output error
+	}{
+		{err1, nil, err1},
+		{nil, err2, err2},
+		{nil, nil, nil},
+	}
+
+	for i, test := range tests {
+		assert.Equal(t, test.output, mergeErrors(test.e, test.minor), i)
+	}
+
+	// Check wrapping
+	err := mergeErrors(err1, err2)
+	assert.Equal(t, err1, errors.Unwrap(err))
+}
+
+func testServer(t *testing.T, versioning bool) (*Server, *mockStore, string) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		t.Fatal(err)
@@ -328,14 +414,14 @@ func testServer(t *testing.T, versioning bool) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := mockStore{}
+	store := newMockStore()
 	cfg := Config{
 		MaxChunkSize:      1024 * 1024 * 8,
 		MaxPackfileSize:   maxPackfileSize,
 		VersioningEnabled: versioning,
 	}
 	srv := New(adapter, store, cfg)
-	return srv, name
+	return srv, store, name
 }
 
 // genTestPackfile generates a packfile for testing
@@ -391,6 +477,13 @@ func getNames(infos []*pb.FileInfo) []string {
 		res[i] = infos[i].Name
 	}
 	return res
+}
+
+func isTwirpError(err error, code twirp.ErrorCode) bool {
+	if terr, ok := err.(twirp.Error); ok {
+		return terr.Code() == code
+	}
+	return false
 }
 
 var a = []byte(`A celebrated tenor had sung in Italian, and a notorious contralto had sung 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/sum"
@@ -85,7 +86,7 @@ func (b *PackfileBuilder) Append(data []byte, s sum.Sum, mode compress.Mode) err
 // calls to append a chunk will return an error.
 func (b *PackfileBuilder) Build() PackIndex {
 	b.closed = true
-	return PackIndex{Blocks: b.idx, Sum: b.hash.Sum()}
+	return PackIndex{Blocks: b.idx, Sum: b.hash.Sum(), Size: b.w.bytesWritten}
 }
 
 // BytesWritten returns the number of bytes written to the packfile.
@@ -208,6 +209,22 @@ func readBlock(r *countingReader) (block, error) {
 	return block{Sum: s, Mode: mode, Data: compressed, Size: blockSize, Offset: offset}, nil
 }
 
+func copyBlock(r io.Reader, w io.Writer) error {
+	// Get the size of the compressed data
+	var size uint64
+	if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
+		return err
+	}
+	// Write the size and remaining data in the block to w
+	if _, err := w.Write(uint64Binary(size)); err != nil {
+		return err
+	}
+	if _, err := io.CopyN(w, r, 1+sum.Size+int64(size)); err != nil {
+		return err
+	}
+	return nil
+}
+
 type countingReader struct {
 	reader    io.Reader
 	bytesRead uint64
@@ -228,4 +245,39 @@ func (w *countingWriter) Write(p []byte) (int, error) {
 	n, err := w.writer.Write(p)
 	w.bytesWritten += uint64(n)
 	return n, err
+}
+
+func FilterPackfile(r io.Reader, w io.Writer, f func(uint64) bool) (uint64, error) {
+	// Validate object type
+	var objType uint8
+	if err := binary.Read(r, binary.LittleEndian, &objType); err != nil {
+		return 0, fmt.Errorf("reading object type: %w", err)
+	}
+	if objType != PackfileObject {
+		return 0, fmt.Errorf("expected packfile object but received object type %d", objType)
+	}
+
+	cw := countingWriter{w, 0}
+
+	if _, err := cw.Write([]byte{objType}); err != nil {
+		return cw.bytesWritten, err
+	}
+
+	// Copy all blocks satisfying the filter from r to cw
+	for i := uint64(0); ; i++ {
+		var err error
+		if f(i) {
+			err = copyBlock(r, &cw)
+		} else {
+			err = copyBlock(r, ioutil.Discard)
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return cw.bytesWritten, fmt.Errorf("copying block %d: %w", i, err)
+		}
+	}
+
+	return cw.bytesWritten, nil
 }

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -25,6 +26,11 @@ import (
 )
 
 const maxFilenameSize = 1024
+
+const (
+	stateNotVacuuming int32 = iota
+	stateVacuuming
+)
 
 // Config stores the configuration for the Server.
 type Config struct {
@@ -53,10 +59,11 @@ type ChunkerParams struct {
 
 // Server implements the Api interface specified in upload.proto.
 type Server struct {
-	db     *db.Adapter
-	store  store.Store
-	cfg    Config
-	logger zerolog.Logger
+	db          *db.Adapter
+	store       store.Store
+	cfg         Config
+	logger      zerolog.Logger
+	isVacuuming int32
 }
 
 // New creates a new Server.
@@ -65,6 +72,7 @@ func New(db *db.Adapter, s store.Store, cfg Config) *Server {
 	return &Server{db: db, cfg: cfg, store: s, logger: logger}
 }
 
+// SetLogger sets the logger for the server.
 func (srv *Server) SetLogger(logger zerolog.Logger) {
 	srv.logger = logger
 }
@@ -145,7 +153,8 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	if err = srv.db.InsertPackIndex(index); err != nil {
+	createdAt := time.Now().UTC()
+	if err = srv.db.InsertPackIndex(index, createdAt); err != nil {
 		err = mergeErrors(err, srv.store.Delete(bucket, pkey))
 		err = mergeErrors(err, srv.store.Delete(bucket, ikey))
 		internalError(w, err)
@@ -535,6 +544,56 @@ func (srv *Server) GetChunkerParams(ctx context.Context, _ *pb.Empty) (*pb.Chunk
 		AvgChunkSize:  uint64(p.AvgChunkSize),
 		MaxChunkSize:  uint64(p.MaxChunkSize),
 		Normalization: uint64(p.Normalization),
+	}, nil
+}
+
+// StartVacuum starts a new vacuum process. Returns a twirp.Unavailable error if
+// a vacuum process is already running. Returns an ID for the vacuum which can be used
+// to check the status of the vacuum.
+func (srv *Server) StartVacuum(ctx context.Context, _ *pb.Empty) (*pb.VacuumID, error) {
+	if !atomic.CompareAndSwapInt32(&srv.isVacuuming, stateNotVacuuming, stateVacuuming) {
+		return nil, twirp.NewError(twirp.Unavailable, "vacuum already in progress")
+	}
+	id, err := srv.db.InsertVacuum(time.Now().UTC())
+	if err != nil {
+		return nil, fmt.Errorf("db InsertVacuum: %v", err)
+	}
+	go func() {
+		defer atomic.StoreInt32(&srv.isVacuuming, stateNotVacuuming)
+		// Don't use the request context because it will be cancelled when the parent
+		// returns
+		ctx := context.Background()
+		srv.logger.Info().Msg("Manual vacuum initiated")
+		err := srv.runVacuum(ctx, time.Now())
+		if err != nil {
+			srv.logger.Error().Msgf("vacuum failed: %v", err)
+			if err = srv.db.UpdateVacuum(id, time.Now().UTC(), db.VacuumFailed); err != nil {
+				srv.logger.Error().Msg(err.Error())
+			}
+			return
+		}
+		srv.logger.Info().Msg("Vacuum complete")
+		if err = srv.db.UpdateVacuum(id, time.Now().UTC(), db.VacuumOK); err != nil {
+			srv.logger.Error().Msg(err.Error())
+		}
+	}()
+	return &pb.VacuumID{Id: id}, nil
+}
+
+// VacuumStatus returns the status of a vacuum process with a given ID. Returns a
+// twirp.NotFound error if the vacuum does not exist.
+func (srv *Server) VacuumStatus(ctx context.Context, id *pb.VacuumID) (*pb.Vacuum, error) {
+	vacuum, err := srv.db.GetVacuum(id.Id)
+	if errors.Is(err, db.ErrNotFound) {
+		return nil, twirp.NotFoundError(fmt.Sprintf("vacuum %s", id.Id))
+	}
+	if err != nil {
+		return nil, fmt.Errorf("db GetVacuum: %w", err)
+	}
+	return &pb.Vacuum{
+		Status:      vacuum.Status.String(),
+		StartedAt:   vacuum.StartedAt,
+		CompletedAt: vacuum.CompletedAt,
 	}, nil
 }
 

@@ -11,7 +11,31 @@ import (
 	"github.com/iotafs/iotafs/internal/compress"
 	"github.com/iotafs/iotafs/internal/object"
 	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/rs/xid"
 )
+
+// VacuumStatus represents the status of a vacuum process.
+type VacuumStatus int
+
+// Vacuum status codes
+const (
+	VacuumRunning VacuumStatus = iota
+	VacuumOK
+	VacuumFailed
+)
+
+func (s VacuumStatus) String() string {
+	switch s {
+	case VacuumRunning:
+		return "RUNNING"
+	case VacuumOK:
+		return "SUCCEEDED"
+	case VacuumFailed:
+		return "FAILED"
+	default:
+		return "UNKNOWN"
+	}
+}
 
 // Adapter interfaces with the database.
 type Adapter struct {
@@ -19,19 +43,19 @@ type Adapter struct {
 	db  *sql.DB
 }
 
+// NewAdapter returns a new database adapter.
 func NewAdapter(db *sql.DB) *Adapter {
 	return &Adapter{sync.Mutex{}, db}
 }
 
+// InitSchema creates the tables for a new database.
 func (a *Adapter) InitSchema() error {
 	_, err := a.db.Exec(Q_000_Base)
 	return err
 }
 
-func (a *Adapter) Close() error {
-	return a.db.Close()
-}
-
+// update accepts a function which may modify the database in a transaction. It cancels
+// the transaction if the function returns an error, or commits the transaction otherwise.
 func (a *Adapter) update(f func(tx *sql.Tx) error) error {
 	a.mut.Lock()
 	defer a.mut.Unlock()
@@ -100,7 +124,7 @@ func (a *Adapter) ChunksExist(sums []sum.Sum) ([]bool, error) {
 		return nil, nil
 	}
 	q := fmt.Sprintf(
-		"SELECT DISTINCT sum FROM indexes WHERE sum IN (%s)",
+		"SELECT DISTINCT sum FROM indexes WHERE sum IN (%s) AND delete_marker <> 1",
 		strings.Repeat("?, ", len(sums)-1)+"?",
 	)
 	args := make([]interface{}, len(sums))
@@ -152,12 +176,12 @@ func (a *Adapter) GetChunkSize(s sum.Sum) (uint64, error) {
 }
 
 // InsertPackIndex saves a PackIndex to the database.
-func (a *Adapter) InsertPackIndex(index object.PackIndex) error {
+func (a *Adapter) InsertPackIndex(index object.PackIndex, createdAt time.Time) error {
 	if len(index.Blocks) == 0 {
 		return fmt.Errorf("pack index is empty")
 	}
 	return a.update(func(tx *sql.Tx) error {
-		packID, err := insertPackfile(tx, index)
+		packID, err := insertPackfile(tx, index, createdAt)
 		if err != nil {
 			return fmt.Errorf("inserting packfile: %w", err)
 		}
@@ -188,6 +212,8 @@ func (a *Adapter) InsertFile(file object.File, sum sum.Sum) error {
 	})
 }
 
+// GetFile returns a File from the database with a given sum. Returns db.ErrNotFound if
+// the file does not exist.
 func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	q := "SELECT id, file, created_at, num_chunks, versioned FROM file_versions WHERE sum = ?"
 	row := a.db.QueryRow(q, s[:])
@@ -224,6 +250,7 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	if err != nil {
 		return object.File{}, err
 	}
+	defer rows.Close()
 	chunks := make([]object.Chunk, 0, numChunks)
 	var seq uint64
 	var size uint64
@@ -247,6 +274,11 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	}, nil
 }
 
+// ListFiles returns a FileInfo slice containing corresponding to files that match the
+// provided prefix. Glob parametrs exclude and include are used to filter the result.
+// Pagination is acheived using the offset and limit parameters. Results are returned
+// in reverse-chronological order by default. Setting ascending to true reverses the
+// order.
 func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string, ascending bool) ([]FileInfo, error) {
 	q := `
 	SELECT name, created_at, size, sum, versioned 
@@ -298,10 +330,10 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 		}
 
 		info := FileInfo{
-			Name: name, 
-			CreatedAt: time.Unix(0, createdAt).UTC(), 
-			Size: size, 
-			Sum: sum, 
+			Name:      name,
+			CreatedAt: time.Unix(0, createdAt).UTC(),
+			Size:      size,
+			Sum:       sum,
 			Versioned: versioned,
 		}
 		infos = append(infos, info)
@@ -310,6 +342,8 @@ func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude s
 	return infos, nil
 }
 
+// GetLatestFileVersion returns the latest version of a file with a given name. Returns
+// db.ErrNotFound if the file does not exist.
 func (a *Adapter) GetLatestFileVersion(name string) (FileInfo, error) {
 	versions, err := a.GetFileVersions(name, 0, 1, false)
 	if err != nil {
@@ -321,6 +355,8 @@ func (a *Adapter) GetLatestFileVersion(name string) (FileInfo, error) {
 	return versions[0], nil
 }
 
+// GetFileVersions returns the versions of a file with a given name. Pagination is
+// acheived with the offset and limit parameters.
 func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascending bool) ([]FileInfo, error) {
 	q := `
 	SELECT created_at, size, sum, versioned 
@@ -360,10 +396,10 @@ func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascen
 		}
 
 		info := FileInfo{
-			Name: name, 
-			CreatedAt: time.Unix(0, createdAt).UTC(), 
-			Size: size, 
-			Sum: sum, 
+			Name:      name,
+			CreatedAt: time.Unix(0, createdAt).UTC(),
+			Size:      size,
+			Sum:       sum,
 			Versioned: versioned,
 		}
 		infos = append(infos, info)
@@ -372,6 +408,7 @@ func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascen
 	return infos, nil
 }
 
+// FileInfo stores the metadata associated with a file.
 type FileInfo struct {
 	Name      string
 	CreatedAt time.Time
@@ -380,6 +417,7 @@ type FileInfo struct {
 	Versioned bool
 }
 
+// ChunkIndex is returned by GetFileChunks.
 type ChunkIndex struct {
 	Sequence uint64
 	PackSum  sum.Sum
@@ -477,9 +515,9 @@ func (a *Adapter) GetFileChunks(fileID sum.Sum) ([]ChunkIndex, error) {
 	return chunks, nil
 }
 
-func insertPackfile(tx *sql.Tx, index object.PackIndex) (int64, error) {
-	q := insertOne("packs", []string{"sum", "num_chunks", "size"})
-	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size)
+func insertPackfile(tx *sql.Tx, index object.PackIndex, createdAt time.Time) (int64, error) {
+	q := insertOne("packs", []string{"sum", "num_chunks", "size", "created_at"})
+	res, err := tx.Exec(q, index.Sum[:], len(index.Blocks), index.Size, createdAt.UnixNano())
 	if err != nil {
 		return 0, err
 	}
@@ -577,14 +615,32 @@ func (a *Adapter) DeleteFile(s sum.Sum) error {
 			return err
 		}
 
-		// Decrement the refcount of each chunk referenced by this file by one
-		q := `
-		UPDATE indexes 
-		SET refcount = refcount - 1 
-		WHERE id IN (SELECT idx FROM file_contents WHERE file_version = ?)
-		`
-		if _, err := tx.Exec(q, verID); err != nil {
-			return fmt.Errorf("decrementing index refcount: %w", err)
+		// // Decrement the refcount of each chunk referenced by this file by one
+		// q := `
+		// UPDATE indexes
+		// SET refcount = refcount - 1
+		// WHERE id IN (SELECT idx FROM file_contents WHERE file_version = ?)
+		// `
+		// if _, err := tx.Exec(q, verID); err != nil {
+		// 	return fmt.Errorf("decrementing index refcount: %w", err)
+		// }
+
+		q := "SELECT idx, count(*) FROM file_contents WHERE file_version = ? GROUP BY idx"
+		rows, err := tx.Query(q, verID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		updateQ := "UPDATE indexes SET refcount = refcount - ? WHERE id = ?"
+		var indexID int64
+		var rc int64
+		for rows.Next() {
+			if err := rows.Scan(&indexID, &rc); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(updateQ, rc, indexID); err != nil {
+				return err
+			}
 		}
 
 		// Delete row from file_version and corresponding rows from file_contents
@@ -614,6 +670,178 @@ func (a *Adapter) DeleteFile(s sum.Sum) error {
 
 		return nil
 	})
+}
+
+// ZeroRefcount is returned by GetZeroRefcount. It stores a pack ID and a sorted sequence
+// of each block in the file with a zero refcount.
+type ZeroRefcount struct {
+	PackID    sum.Sum
+	Sequences []uint64
+}
+
+// GetZeroRefcount returns the block sequence numbers in each packfile with a zero
+// refcount.
+func (a *Adapter) GetZeroRefcount(createdBefore time.Time) ([]ZeroRefcount, error) {
+	var result []ZeroRefcount
+
+	a.update(func(tx *sql.Tx) error {
+		q := `
+		SELECT indexes.id, packs.sum, indexes.sequence 
+		FROM indexes JOIN packs on packs.id = indexes.pack
+		WHERE indexes.refcount = 0 AND packs.created_at < ?
+		ORDER BY packs.id, indexes.sequence
+		`
+		rows, err := a.db.Query(q, createdBefore.UTC().UnixNano())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		var indexIDs []int64
+		var prevSum sum.Sum
+		var slice []uint64
+		var indexID int64
+		var seq uint64
+		packID := make([]byte, sum.Size)
+		for i := 0; rows.Next(); i++ {
+			if err := rows.Scan(&indexID, &packID, &seq); err != nil {
+				return err
+			}
+			sum, err := sum.FromBytes(packID)
+			if err != nil {
+				return err
+			}
+			if prevSum != sum {
+				if i != 0 {
+					seqs := make([]uint64, len(slice))
+					copy(seqs, slice)
+					result = append(result, ZeroRefcount{prevSum, seqs})
+					slice = slice[:0]
+				}
+				prevSum = sum
+			}
+			slice = append(slice, seq)
+			indexIDs = append(indexIDs, indexID)
+		}
+		if len(slice) > 0 {  // Don't forget the last slice
+			seqs := make([]uint64, len(slice))
+			copy(seqs, slice)
+			result = append(result, ZeroRefcount{prevSum, seqs})
+
+		}
+
+		// Set the delete marker on all blocks picked out
+		q = "UPDATE indexes SET delete_marker = 1 WHERE id = ?"
+		for _, id := range indexIDs {
+			if _, err := tx.Exec(q, id); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return result, nil
+}
+
+// UpdateIndex overwrites the contents of a pack index with a new one. The map m
+// specifies the mapping from the sequence numbers of the new index to the sequence
+// numbers of the old index. Any sequences in the old index which are not re-mapped will
+// be deleted when DeletePackIndex is called on the old index.
+func (a *Adapter) UpdateIndex(newIndex object.PackIndex, createdAt time.Time, oldIndexSum sum.Sum, m map[uint64]uint64) error {
+	return a.update(func(tx *sql.Tx) error {
+		newPackID, err := insertPackfile(tx, newIndex, createdAt.UTC())
+		if err != nil {
+			return fmt.Errorf("insertPackfile: %w", err)
+		}
+
+		var oldPackID uint64
+		q := "SELECT id FROM packs WHERE sum = ?"
+		row := tx.QueryRow(q, oldIndexSum[:])
+		if err := row.Scan(&oldPackID); err != nil {
+			return fmt.Errorf("getting old pack row ID: %w", err)
+		}
+
+		q = `
+		UPDATE indexes 
+		SET pack = ?, sequence = ?, offset = ? 
+		WHERE pack = ? AND sequence = ?
+		`
+		for _, block := range newIndex.Blocks {
+			oldSeq, ok := m[block.Sequence]
+			if !ok {
+				return fmt.Errorf("no sequence mapping for block %d", block.Sequence)
+			}
+			_, err = tx.Exec(q, newPackID, block.Sequence, block.Offset, oldPackID, oldSeq)
+			if err != nil {
+				return fmt.Errorf("updating pack index: %w", err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// DeletePackIndex deletes a pack index from the database.
+func (a *Adapter) DeletePackIndex(sum sum.Sum) error {
+	return a.update(func(tx *sql.Tx) error {
+		// Will also delete corresponding rows in indexes table because the FK has
+		// ON DELETE CASCADE set.
+		q := "DELETE FROM packs WHERE sum = ?"
+		_, err := tx.Exec(q, sum[:])
+		return err
+	})
+}
+
+// InsertVacuum inserts a row for a new vacuum. Returns the vacuum ID.
+func (a *Adapter) InsertVacuum(startedAt time.Time) (string, error) {
+	var id string
+	err := a.update(func(tx *sql.Tx) error {
+		id = xid.New().String()
+		q := insertOne("vacuums", []string{"id", "started_at", "status"})
+		_, err := tx.Exec(q, id, startedAt.UTC().UnixNano(), VacuumRunning)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return id, err
+}
+
+// UpdateVacuum updates the status and completed time of a given vacuum.
+func (a *Adapter) UpdateVacuum(id string, completedAt time.Time, status VacuumStatus) error {
+	return a.update(func(tx *sql.Tx) error {
+		q := "UPDATE vacuums SET completed_at = ?, status = ? WHERE id = ?"
+		_, err := tx.Exec(q, completedAt.UTC().UnixNano(), int(status), id)
+		return err
+	})
+}
+
+// Vacuum is returned by the GetVacuum method.
+type Vacuum struct {
+	ID        string
+	Status    VacuumStatus
+	StartedAt int64
+	// Will be zero if Status is VacuumRunning
+	CompletedAt int64
+}
+
+// GetVacuum returns the status of a vacuum process with a given ID. Returns
+// db.ErrNotFound if the vacuum does not exist.
+func (a *Adapter) GetVacuum(id string) (Vacuum, error) {
+	q := "SELECT status, started_at, completed_at FROM vacuums WHERE id = ?"
+	var status int
+	var startedAt int64
+	var completedAt int64
+	row := a.db.QueryRow(q, id)
+	err := row.Scan(&status, &startedAt, &completedAt)
+	if err == sql.ErrNoRows {
+		return Vacuum{}, ErrNotFound
+	}
+	if err != nil {
+		return Vacuum{}, err
+	}
+	return Vacuum{id, VacuumStatus(status), startedAt, completedAt}, nil
 }
 
 func insertOne(table string, cols []string) string {

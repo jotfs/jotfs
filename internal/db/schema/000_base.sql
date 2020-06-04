@@ -3,22 +3,25 @@ CREATE TABLE packs (
     sum        BLOB NOT NULL,
     num_chunks INTEGER NOT NULL,
     size       INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
 
     CHECK (length(sum) = 32),
     CHECK (num_chunks > 0),
-    CHECK (size > 0)
+    CHECK (size > 0),
+    CHECK (created_at > 0)
 );
 
 CREATE TABLE indexes (
     id            INTEGER PRIMARY KEY,
-    pack          INTEGER NOT NULL REFERENCES packs (id),
+    pack          INTEGER NOT NULL REFERENCES packs (id) ON DELETE CASCADE,
     sequence      INTEGER NOT NULL,
     sum           BLOB NOT NULL,
     chunk_size    INTEGER NOT NULL,
     mode          INTEGER NOT NULL,
     offset        INTEGER NOT NULL,
     size          INTEGER NOT NULL,
-    refcount      INTEGER NOT NULL
+    refcount      INTEGER NOT NULL,
+    delete_marker INTEGER NOT NULL DEFAULT 0,
 
     CHECK (sequence >= 0),
     CHECK (length(sum) = 32),
@@ -64,4 +67,11 @@ CREATE TABLE file_contents (
     sequence      INTEGER NOT NULL,
 
     CHECK (sequence >= 0)
+);
+
+CREATE TABLE vacuums (
+    id TEXT PRIMARY KEY,
+    started_at INTEGER NOT NULL,
+    status INTEGER NOT NULL DEFAULT 0,
+    completed_at INTEGER NOT NULL DEFAULT 0
 );

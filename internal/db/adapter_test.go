@@ -43,10 +43,11 @@ func TestPackIndex(t *testing.T) {
 	}
 
 	// InsertPackIndex test
-	assert.NoError(t, db.InsertPackIndex(index))
+	createdAt := time.Now().UTC()
+	assert.NoError(t, db.InsertPackIndex(index, createdAt))
 
 	// InsertPackIndex empty -- should get error
-	err = db.InsertPackIndex(object.PackIndex{})
+	err = db.InsertPackIndex(object.PackIndex{}, createdAt)
 	assert.Error(t, err)
 
 	// ChunkExist test
@@ -132,7 +133,8 @@ func TestGetFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = db.InsertPackIndex(index); err != nil {
+	createdAt := time.Now().UTC()
+	if err = db.InsertPackIndex(index, createdAt); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,30 +241,3 @@ func TestGetFile(t *testing.T) {
 	assert.Equal(t, ErrNotFound, err)
 
 }
-
-// func packIndexExample() object.PackIndex {
-// 	s, _ := sum.FromHex("3418bd8fd971059a773ac36af9e4160f7c2aa410ccefdb4fcabe1a2ff27975e7")
-// 	s0, _ := sum.FromHex("115f26607addd2a2b0ffc09348f6c2af367ffa5d3dd4aa663c763b6cb375a4ff")
-// 	s1, _ := sum.FromHex("b54d7ba25139e8177c008630f35fbf5bd159953e48c16bdcf400bd3f83bb06e6")
-// 	return object.PackIndex{
-// 		Sum: s,
-// 		Blocks: []object.BlockInfo{
-// 			{
-// 				Sum:       s0,
-// 				ChunkSize: 1505148,
-// 				Sequence:  0,
-// 				Offset:    1,
-// 				Size:      1505189,
-// 				Mode:      compress.None,
-// 			},
-// 			{
-// 				Sum:       s1,
-// 				ChunkSize: 610082,
-// 				Sequence:  1,
-// 				Offset:    1505190,
-// 				Size:      610123,
-// 				Mode:      compress.None,
-// 			},
-// 		},
-// 	}
-// }

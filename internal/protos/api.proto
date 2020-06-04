@@ -12,6 +12,8 @@ service IotaFS {
     rpc Copy(CopyRequest) returns (FileID);
     rpc Delete(FileID) returns (Empty);
     rpc GetChunkerParams(Empty) returns (ChunkerParams);
+    rpc StartVacuum(Empty) returns (VacuumID);
+    rpc VacuumStatus(VacuumID) returns (Vacuum);
 }
 
 message ChunksExistRequest {
@@ -113,5 +115,15 @@ message ChunkerParams {
     uint64 avg_chunk_size = 2;
     uint64 max_chunk_size = 3;
     uint64 normalization = 4;
+}
+
+message VacuumID {
+    string id = 1;
+}
+
+message Vacuum {
+    string status = 1;
+    int64 started_at = 2;
+    int64 completed_at = 3;
 }
 

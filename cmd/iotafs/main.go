@@ -18,12 +18,12 @@ import (
 	"github.com/iotafs/iotafs/internal/server"
 	"github.com/iotafs/iotafs/internal/store"
 	"github.com/iotafs/iotafs/internal/store/s3"
-	"github.com/twitchtv/twirp"
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog"
+	"github.com/twitchtv/twirp"
 )
 
 const (

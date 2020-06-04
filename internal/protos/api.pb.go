@@ -1109,6 +1109,116 @@ func (x *ChunkerParams) GetNormalization() uint64 {
 	return 0
 }
 
+type VacuumID struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+}
+
+func (x *VacuumID) Reset() {
+	*x = VacuumID{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_protos_api_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *VacuumID) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VacuumID) ProtoMessage() {}
+
+func (x *VacuumID) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_protos_api_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VacuumID.ProtoReflect.Descriptor instead.
+func (*VacuumID) Descriptor() ([]byte, []int) {
+	return file_internal_protos_api_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *VacuumID) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type Vacuum struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Status      string `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	StartedAt   int64  `protobuf:"varint,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	CompletedAt int64  `protobuf:"varint,3,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+}
+
+func (x *Vacuum) Reset() {
+	*x = Vacuum{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_protos_api_proto_msgTypes[20]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Vacuum) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Vacuum) ProtoMessage() {}
+
+func (x *Vacuum) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_protos_api_proto_msgTypes[20]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Vacuum.ProtoReflect.Descriptor instead.
+func (*Vacuum) Descriptor() ([]byte, []int) {
+	return file_internal_protos_api_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *Vacuum) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *Vacuum) GetStartedAt() int64 {
+	if x != nil {
+		return x.StartedAt
+	}
+	return 0
+}
+
+func (x *Vacuum) GetCompletedAt() int64 {
+	if x != nil {
+		return x.CompletedAt
+	}
+	return 0
+}
+
 var File_internal_protos_api_proto protoreflect.FileDescriptor
 
 var file_internal_protos_api_proto_rawDesc = []byte{
@@ -1207,7 +1317,15 @@ var file_internal_protos_api_proto_rawDesc = []byte{
 	0x20, 0x01, 0x28, 0x04, 0x52, 0x0c, 0x6d, 0x61, 0x78, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x53, 0x69,
 	0x7a, 0x65, 0x12, 0x24, 0x0a, 0x0d, 0x6e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x69, 0x7a, 0x61, 0x74,
 	0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0d, 0x6e, 0x6f, 0x72, 0x6d, 0x61,
-	0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x32, 0xa8, 0x03, 0x0a, 0x06, 0x49, 0x6f, 0x74,
+	0x6c, 0x69, 0x7a, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x1a, 0x0a, 0x08, 0x56, 0x61, 0x63, 0x75,
+	0x75, 0x6d, 0x49, 0x44, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x02, 0x69, 0x64, 0x22, 0x62, 0x0a, 0x06, 0x56, 0x61, 0x63, 0x75, 0x75, 0x6d, 0x12, 0x16,
+	0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06,
+	0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x65,
+	0x64, 0x5f, 0x61, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x65, 0x64, 0x41, 0x74, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74,
+	0x65, 0x64, 0x5f, 0x61, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0b, 0x63, 0x6f, 0x6d,
+	0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x41, 0x74, 0x32, 0x8a, 0x04, 0x0a, 0x06, 0x49, 0x6f, 0x74,
 	0x61, 0x46, 0x53, 0x12, 0x46, 0x0a, 0x0b, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x45, 0x78, 0x69,
 	0x73, 0x74, 0x12, 0x1a, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x68, 0x75, 0x6e,
 	0x6b, 0x73, 0x45, 0x78, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b,
@@ -1234,8 +1352,14 @@ var file_internal_protos_api_proto_rawDesc = []byte{
 	0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x50, 0x61, 0x72, 0x61, 0x6d, 0x73, 0x12, 0x0d, 0x2e,
 	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x15, 0x2e, 0x73,
 	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x50, 0x61, 0x72,
-	0x61, 0x6d, 0x73, 0x42, 0x11, 0x5a, 0x0f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f,
-	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x61, 0x6d, 0x73, 0x12, 0x2e, 0x0a, 0x0b, 0x53, 0x74, 0x61, 0x72, 0x74, 0x56, 0x61, 0x63, 0x75,
+	0x75, 0x6d, 0x12, 0x0d, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x45, 0x6d, 0x70, 0x74,
+	0x79, 0x1a, 0x10, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56, 0x61, 0x63, 0x75, 0x75,
+	0x6d, 0x49, 0x44, 0x12, 0x30, 0x0a, 0x0c, 0x56, 0x61, 0x63, 0x75, 0x75, 0x6d, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x12, 0x10, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56, 0x61, 0x63,
+	0x75, 0x75, 0x6d, 0x49, 0x44, 0x1a, 0x0e, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56,
+	0x61, 0x63, 0x75, 0x75, 0x6d, 0x42, 0x11, 0x5a, 0x0f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1250,7 +1374,7 @@ func file_internal_protos_api_proto_rawDescGZIP() []byte {
 	return file_internal_protos_api_proto_rawDescData
 }
 
-var file_internal_protos_api_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_internal_protos_api_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_internal_protos_api_proto_goTypes = []interface{}{
 	(*ChunksExistRequest)(nil),  // 0: server.ChunksExistRequest
 	(*ChunksExistResponse)(nil), // 1: server.ChunksExistResponse
@@ -1271,6 +1395,8 @@ var file_internal_protos_api_proto_goTypes = []interface{}{
 	(*Section)(nil),             // 16: server.Section
 	(*DownloadResponse)(nil),    // 17: server.DownloadResponse
 	(*ChunkerParams)(nil),       // 18: server.ChunkerParams
+	(*VacuumID)(nil),            // 19: server.VacuumID
+	(*Vacuum)(nil),              // 20: server.Vacuum
 }
 var file_internal_protos_api_proto_depIdxs = []int32{
 	12, // 0: server.ListResponse.info:type_name -> server.FileInfo
@@ -1286,16 +1412,20 @@ var file_internal_protos_api_proto_depIdxs = []int32{
 	3,  // 10: server.IotaFS.Copy:input_type -> server.CopyRequest
 	4,  // 11: server.IotaFS.Delete:input_type -> server.FileID
 	13, // 12: server.IotaFS.GetChunkerParams:input_type -> server.Empty
-	1,  // 13: server.IotaFS.ChunksExist:output_type -> server.ChunksExistResponse
-	4,  // 14: server.IotaFS.CreateFile:output_type -> server.FileID
-	8,  // 15: server.IotaFS.List:output_type -> server.ListResponse
-	10, // 16: server.IotaFS.Head:output_type -> server.HeadResponse
-	17, // 17: server.IotaFS.Download:output_type -> server.DownloadResponse
-	4,  // 18: server.IotaFS.Copy:output_type -> server.FileID
-	13, // 19: server.IotaFS.Delete:output_type -> server.Empty
-	18, // 20: server.IotaFS.GetChunkerParams:output_type -> server.ChunkerParams
-	13, // [13:21] is the sub-list for method output_type
-	5,  // [5:13] is the sub-list for method input_type
+	13, // 13: server.IotaFS.StartVacuum:input_type -> server.Empty
+	19, // 14: server.IotaFS.VacuumStatus:input_type -> server.VacuumID
+	1,  // 15: server.IotaFS.ChunksExist:output_type -> server.ChunksExistResponse
+	4,  // 16: server.IotaFS.CreateFile:output_type -> server.FileID
+	8,  // 17: server.IotaFS.List:output_type -> server.ListResponse
+	10, // 18: server.IotaFS.Head:output_type -> server.HeadResponse
+	17, // 19: server.IotaFS.Download:output_type -> server.DownloadResponse
+	4,  // 20: server.IotaFS.Copy:output_type -> server.FileID
+	13, // 21: server.IotaFS.Delete:output_type -> server.Empty
+	18, // 22: server.IotaFS.GetChunkerParams:output_type -> server.ChunkerParams
+	19, // 23: server.IotaFS.StartVacuum:output_type -> server.VacuumID
+	20, // 24: server.IotaFS.VacuumStatus:output_type -> server.Vacuum
+	15, // [15:25] is the sub-list for method output_type
+	5,  // [5:15] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -1535,6 +1665,30 @@ func file_internal_protos_api_proto_init() {
 				return nil
 			}
 		}
+		file_internal_protos_api_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*VacuumID); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_protos_api_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Vacuum); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1542,7 +1696,7 @@ func file_internal_protos_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_protos_api_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -46,6 +46,7 @@ func (p *PackIndex) MarshalBinary() []byte {
 	// TODO: we can pre-calculate the buffer capacity here
 	b := make([]byte, 0)
 	b = append(b, p.Sum[:]...)
+	b = append(b, uint64Binary(p.Size)...)
 	b = append(b, uint64Binary(uint64(len(p.Blocks)))...)
 	for _, bck := range p.Blocks {
 		b = bck.marshalBinary(b)
@@ -59,6 +60,11 @@ func (p *PackIndex) UnmarshalBinary(data []byte) error {
 
 	var psum sum.Sum
 	if _, err := b.Read(psum[:]); err != nil {
+		return err
+	}
+
+	size, err := getBinaryUint64(b)
+	if err != nil {
 		return err
 	}
 
@@ -80,6 +86,7 @@ func (p *PackIndex) UnmarshalBinary(data []byte) error {
 
 	p.Sum = psum
 	p.Blocks = blocks
+	p.Size = size
 
 	return nil
 }

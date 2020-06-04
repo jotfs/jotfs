@@ -3,7 +3,9 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"time"
 )
 
@@ -32,6 +34,32 @@ type Range struct {
 	To   uint64
 }
 
-// Presigner creates pre-signed URLs for retrieving data from the store.
-type Presigner interface {
+// GetObject is a wrapper around the store Get method. It returns the contents of an
+// object as a byte slice.
+func GetObject(ctx context.Context, s Store, bucket string, key string) ([]byte, error) {
+	r, err := s.Get(ctx, bucket, key)
+	if err != nil {
+		return nil, err
+	}
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, mergeErrors(err, r.Close())
+	}
+	if err := r.Close(); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func mergeErrors(err error, minor error) error {
+	if err == nil && minor == nil {
+		return nil
+	}
+	if err == nil {
+		return minor
+	}
+	if minor == nil {
+		return err
+	}
+	return fmt.Errorf("%w; %v", err, minor)
 }
