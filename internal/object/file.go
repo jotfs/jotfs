@@ -95,7 +95,7 @@ func (f *File) UnmarshalBinary(r io.Reader) error {
 	}
 
 	f.Name = string(name)
-	f.CreatedAt = time.Unix(0, int64(createdAtNanos))
+	f.CreatedAt = time.Unix(0, int64(createdAtNanos)).UTC()
 	f.Chunks = chunks
 	f.Versioned = versioned
 

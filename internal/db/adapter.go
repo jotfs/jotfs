@@ -248,6 +248,7 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 	SELECT file_contents.sequence, chunk_size, sum
 	FROM file_contents JOIN indexes on indexes.id = file_contents.idx
 	WHERE file_contents.file_version = ?
+	ORDER BY file_contents.sequence
 	`
 	rows, err := a.db.Query(q, versionID)
 	if err != nil {
