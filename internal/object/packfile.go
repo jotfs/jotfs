@@ -247,6 +247,9 @@ func (w *countingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// FilterPackfile reads a packfile from r and writes each block satisfying the filter
+// function to a new packfile w. The filter function f takes the sequence number of a
+// block in the original packfile and should return true if that block should be kept.
 func FilterPackfile(r io.Reader, w io.Writer, f func(uint64) bool) (uint64, error) {
 	// Validate object type
 	var objType uint8
@@ -259,14 +262,18 @@ func FilterPackfile(r io.Reader, w io.Writer, f func(uint64) bool) (uint64, erro
 
 	cw := countingWriter{w, 0}
 
-	if _, err := cw.Write([]byte{objType}); err != nil {
-		return cw.bytesWritten, err
-	}
-
 	// Copy all blocks satisfying the filter from r to cw
+	var nBlocks int
 	for i := uint64(0); ; i++ {
 		var err error
 		if f(i) {
+			if nBlocks == 0 {
+				// Write the file header
+				if _, err := cw.Write([]byte{objType}); err != nil {
+					return cw.bytesWritten, err
+				}
+			}
+			nBlocks++
 			err = copyBlock(r, &cw)
 		} else {
 			err = copyBlock(r, ioutil.Discard)
