@@ -631,20 +631,20 @@ func (a *Adapter) DeleteFile(s sum.Sum) error {
 			return err
 		}
 
-		q := "SELECT idx, count(*) FROM file_contents WHERE file_version = ? GROUP BY idx"
+		// Decrement the refcount of each chunk referenced in the file
+		q := "SELECT idx FROM file_contents WHERE file_version = ?"
 		rows, err := tx.Query(q, verID)
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
-		updateQ := "UPDATE indexes SET refcount = refcount - ? WHERE id = ?"
+		updateQ := "UPDATE indexes SET refcount = refcount - 1 WHERE id = ?"
 		var indexID int64
-		var rc int64
 		for rows.Next() {
-			if err := rows.Scan(&indexID, &rc); err != nil {
+			if err := rows.Scan(&indexID); err != nil {
 				return err
 			}
-			if _, err := tx.Exec(updateQ, rc, indexID); err != nil {
+			if _, err := tx.Exec(updateQ, indexID); err != nil {
 				return err
 			}
 		}
@@ -736,7 +736,6 @@ func (a *Adapter) GetZeroRefcount(createdBefore time.Time) ([]ZeroRefcount, erro
 			seqs := make([]uint64, len(slice))
 			copy(seqs, slice)
 			result = append(result, ZeroRefcount{prevSum, seqs})
-
 		}
 		if err := rows.Err(); err != nil {
 			return err

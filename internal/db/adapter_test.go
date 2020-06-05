@@ -128,6 +128,24 @@ func TestPackIndex(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func insertFile(t *testing.T, db *Adapter, name string) (sum.Sum, object.File) {
+	chunks := []object.Chunk{
+		{Sequence: 0, Size: block0.ChunkSize, Sum: block0.Sum},
+		{Sequence: 1, Size: block1.ChunkSize, Sum: block1.Sum},
+	}
+	file := object.File{
+		Name:      name,
+		CreatedAt: time.Now().UTC(),
+		Chunks:    chunks,
+		Versioned: true,
+	}
+	s := sum.Compute(file.MarshalBinary())
+	if err := db.InsertFile(file, s); err != nil {
+		t.Fatal(err)
+	}
+	return s, file
+}
+
 func TestGetFile(t *testing.T) {
 	db, err := EmptyInMemory()
 	if err != nil {
@@ -138,27 +156,9 @@ func TestGetFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	insertFile := func(name string) (sum.Sum, object.File) {
-		chunks := []object.Chunk{
-			{Sequence: 0, Size: block0.ChunkSize, Sum: block0.Sum},
-			{Sequence: 1, Size: block1.ChunkSize, Sum: block1.Sum},
-		}
-		file := object.File{
-			Name:      name,
-			CreatedAt: time.Now().UTC(),
-			Chunks:    chunks,
-			Versioned: true,
-		}
-		s := sum.Compute(file.MarshalBinary())
-		if err := db.InsertFile(file, s); err != nil {
-			t.Fatal(err)
-		}
-		return s, file
-	}
-
-	s1, f1 := insertFile("/test1")
-	s2, f2 := insertFile("/data/test2")
-	s3, f3 := insertFile("/data/test2")
+	s1, f1 := insertFile(t, db, "/test1")
+	s2, f2 := insertFile(t, db, "/data/test2")
+	s3, f3 := insertFile(t, db, "/data/test2")
 	info1 := FileInfo{Name: f1.Name, CreatedAt: f1.CreatedAt, Size: f1.Size(), Sum: s1, Versioned: f1.Versioned}
 	info2 := FileInfo{Name: f2.Name, CreatedAt: f2.CreatedAt, Size: f2.Size(), Sum: s2, Versioned: f2.Versioned}
 	info3 := FileInfo{Name: f3.Name, CreatedAt: f3.CreatedAt, Size: f3.Size(), Sum: s3, Versioned: f3.Versioned}
@@ -239,5 +239,82 @@ func TestGetFile(t *testing.T) {
 	// Delete file -- error if file does not exist
 	err = db.DeleteFile(sum.Sum{})
 	assert.Equal(t, ErrNotFound, err)
+}
 
+func TestVacuum(t *testing.T) {
+	db, err := EmptyInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Insert vacuum
+	startedAt := time.Now()
+	id, err := db.InsertVacuum(startedAt)
+	assert.NoError(t, err)
+
+	// Get vacuum
+	vac, err := db.GetVacuum(id)
+	assert.Equal(t, startedAt.UnixNano(), vac.StartedAt)
+	assert.Equal(t, VacuumRunning, vac.Status)
+	assert.Equal(t, id, vac.ID)
+	assert.Zero(t, vac.CompletedAt)
+
+	// Update vacuum status
+	completedAt := time.Now().Add(10 * time.Second)
+	err = db.UpdateVacuum(id, completedAt, VacuumOK)
+	assert.NoError(t, err)
+
+	// CompletedAt should be set after update
+	vac2, err := db.GetVacuum(id)
+	assert.NoError(t, err)
+	assert.Equal(t,
+		Vacuum{ID: id, Status: VacuumOK, StartedAt: startedAt.UnixNano(), CompletedAt: completedAt.UnixNano()},
+		vac2,
+	)
+
+	// Error from GetVacuum if id does not exist
+	_, err = db.GetVacuum("")
+	assert.Equal(t, ErrNotFound, err)
+
+	// No Error from UpdateVacuum if id does not exist
+	err = db.UpdateVacuum("", completedAt, VacuumOK)
+	assert.NoError(t, err)
+}
+
+func TestServerStats(t *testing.T) {
+	db, err := EmptyInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Stats should all be zero for empty DB
+	stats, err := db.GetServerStats()
+	assert.NoError(t, err)
+	assert.Equal(t, Stats{}, stats)
+
+	// Insert a file and get stats
+	assert.NoError(t, db.InsertPackIndex(index, time.Now()))
+	insertFile(t, db, "abc")
+	stats, err = db.GetServerStats()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), stats.NumFileVersions)
+	assert.Equal(t, uint64(1), stats.NumFiles)
+	assert.NotZero(t, stats.TotalFilesSize)
+	assert.NotZero(t, stats.TotalDataSize)
+}
+
+func TestDeletePackIndex(t *testing.T) {
+	db, err := EmptyInMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.NoError(t, db.InsertPackIndex(index, time.Now()))
+
+	// Delete
+	err = db.DeletePackIndex(index.Sum)
+	assert.NoError(t, err)
+
+	// No error when Delete is called on an index that doesn't exist
+	err = db.DeletePackIndex(sum.Sum{})
+	assert.NoError(t, err)
 }
