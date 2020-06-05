@@ -53,14 +53,38 @@ func TestImplements(t *testing.T) {
 	assert.Implements(t, (*store.Store)(nil), new(Store))
 }
 
-func TestNew(t *testing.T) {
+func TestPut(t *testing.T) {
 	ctx := context.Background()
 
 	// Simple file
 	k0 := randKey()
-	err := s.Put(ctx, bucket, k0, bytes.NewReader([]byte("Hello world!")))
+	data := []byte("Hello world!")
+	err := s.Put(ctx, bucket, k0, bytes.NewReader(data))
 	assert.NoError(t, err)
-	assert.NoError(t, s.Delete(bucket, k0))
+	// assert.NoError(t, s.Delete(bucket, k0))
+
+	// Get object
+	r, err := s.Get(ctx, bucket, k0)
+	assert.NoError(t, err)
+	dataGet, err := ioutil.ReadAll(r)
+	assert.NoError(t, err)
+	assert.Equal(t, data, dataGet)
+
+	// Error if object doesn't exist
+	_, err = s.Get(ctx, bucket, "does-not-exist")
+	assert.Equal(t, store.ErrNotFound, err)
+
+	// Delete
+	err = s.Delete(bucket, k0)
+	assert.NoError(t, err)
+
+	// No error if delete same object again
+	err = s.Delete(bucket, k0)
+	assert.NoError(t, err)
+
+	// No error if delete object which doesn't exist
+	err = s.Delete(bucket, k0)
+	assert.NoError(t, err)
 }
 
 func TestCopy(t *testing.T) {
@@ -99,7 +123,7 @@ func TestGetPresignedURL(t *testing.T) {
 	assert.NotEmpty(t, url)
 	assert.NoError(t, err)
 
-	// GET the URL
+	// GET data from the URL
 	req, _ := http.NewRequest("GET", url, nil)
 	req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", rnge.From, rnge.To))
 	resp, err := http.DefaultClient.Do(req)

@@ -89,7 +89,7 @@ func (s *Store) Copy(bucket string, from string, to string) error {
 	return err
 }
 
-// Delete removes an object.
+// Delete removes an object. No error is returned if the object does not exist.
 func (s *Store) Delete(bucket string, key string) error {
 	_, err := s.svc.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: &bucket,
