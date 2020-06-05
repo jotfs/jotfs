@@ -29,6 +29,7 @@ import (
 const (
 	defaultDatabase = "./iotafs.db"
 	defaultPort     = 6777
+	defaultLogLevel = "warn"
 
 	defaultStoreEndpoint = "s3.amazonaws.com"
 
@@ -50,6 +51,7 @@ type serverConfig struct {
 	Database          string `toml:"database"`
 	VersioningEnabled bool   `toml:"enable_versioning"`
 	AvgChunkKiB       uint   `toml:"avg_chunk_kib"`
+	LogLevel          string `toml:"log_level"`
 }
 
 type storeConfig struct {
@@ -87,9 +89,9 @@ func openDB(filename string) (*db.Adapter, error) {
 		return nil, fmt.Errorf("opening file %s: %v", filename, err)
 	}
 	if exists {
-		logger.Info().Msgf("Using existing database %s", filename)
+		fmt.Printf("Using existing database %s\n", filename)
 	} else {
-		logger.Info().Msgf("Creating new database %s", filename)
+		fmt.Printf("Creating new database %s\n", filename)
 	}
 	sqldb, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_fk=true", filename))
 	if err != nil {
@@ -176,14 +178,17 @@ func (c *serverConfig) setDefaults() {
 	}
 	if c.AvgChunkKiB == 0 {
 		c.AvgChunkKiB = defaultAvgKib
-		logger.Info().Msgf("Using default average chunk size %d KiB", defaultAvgKib)
+		fmt.Printf("Using default average chunk size %d KiB\n", defaultAvgKib)
+	}
+	if c.LogLevel == "" {
+		c.LogLevel = defaultLogLevel
 	}
 }
 
 func (c *storeConfig) setDefaults() {
 	if c.Endpoint == "" {
 		c.Endpoint = defaultStoreEndpoint
-		logger.Info().Msgf("Using default store endpoint %s", defaultStoreEndpoint)
+		fmt.Printf("Using default store endpoint %s", defaultStoreEndpoint)
 	}
 }
 
@@ -296,6 +301,21 @@ func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params
 	return nil
 }
 
+func getLoggerLevel(s string) zerolog.Level {
+	switch s {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "warn":
+		return zerolog.WarnLevel
+	case "error":
+		return zerolog.ErrorLevel
+	default:
+		return zerolog.WarnLevel
+	}
+}
+
 var (
 	configFileName = flag.String("config", "iotafs.toml", "path to config file")
 	dbName         = flag.String("db", "", "override the database file path")
@@ -306,13 +326,6 @@ var logger zerolog.Logger
 
 func run() error {
 	flag.Parse()
-
-	// Configure the logger
-	if *debug {
-		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
-	} else {
-		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(zerolog.InfoLevel)
-	}
 
 	// Load and validate the config
 	cfg, err := readConfig(*configFileName)
@@ -329,12 +342,20 @@ func run() error {
 	}
 	cfg.setDefaults()
 
+	// Configure the logger
+	if *debug {
+		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
+	} else {
+		level := getLoggerLevel(cfg.Server.LogLevel)
+		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(level)
+	}
+
 	adapter, err := openDB(cfg.Server.Database)
 	if err != nil {
 		return fmt.Errorf("database: %v", err)
 	}
 
-	logger.Info().Msgf("Connecting to store %s", cfg.Store.Endpoint)
+	fmt.Printf("Connecting to object store %s\n", cfg.Store.Endpoint)
 	store, err := s3.New(s3.Config{
 		Region:     cfg.Store.Region,
 		Endpoint:   cfg.Store.Endpoint,
@@ -367,9 +388,9 @@ func run() error {
 	}
 
 	if cfg.Server.VersioningEnabled {
-		logger.Info().Msg("File versioning enabled")
+		fmt.Println("File versioning enabled")
 	} else {
-		logger.Info().Msg("File versioning disabled")
+		fmt.Println("File versioning disabled")
 	}
 
 	srv := server.New(adapter, store, server.Config{
@@ -386,7 +407,7 @@ func run() error {
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
 	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
-	logger.Info().Msgf("Listening on port %d", cfg.Server.Port)
+	fmt.Printf("Listening on port %d\n", cfg.Server.Port)
 	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Server.Port), mux)
 
 	return err
