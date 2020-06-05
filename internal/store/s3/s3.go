@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/iotafs/iotafs/internal/store"
+	"github.com/jotfs/jotfs/internal/store"
 )
 
 // Config stores the configuration for the S3 store.

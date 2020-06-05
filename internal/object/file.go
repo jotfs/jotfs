@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/sum"
 )
 
 const maxChunks = 1_000_000

@@ -3,7 +3,7 @@ syntax = "proto3";
 package server;
 option go_package = "internal/protos";
 
-service IotaFS {
+service JotFS {
     rpc ChunksExist(ChunksExistRequest) returns (ChunksExistResponse);
     rpc CreateFile(File) returns (FileID);
     rpc List(ListRequest) returns (ListResponse);

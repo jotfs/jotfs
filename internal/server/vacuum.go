@@ -9,10 +9,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/db"
-	"github.com/iotafs/iotafs/internal/object"
-	"github.com/iotafs/iotafs/internal/store"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/db"
+	"github.com/jotfs/jotfs/internal/object"
+	"github.com/jotfs/jotfs/internal/store"
+	"github.com/jotfs/jotfs/internal/sum"
 )
 
 func (srv *Server) runVacuum(ctx context.Context, createdBefore time.Time) error {
@@ -91,7 +91,7 @@ func (srv *Server) rebuildPackfile(ctx context.Context, zr db.ZeroRefcount, inde
 	if err != nil {
 		return fmt.Errorf("store get: %w", err)
 	}
-	f, err := ioutil.TempFile("", "iota-")
+	f, err := ioutil.TempFile("", "jotfs-")
 	if err != nil {
 		err = mergeErrors(err, f.Close())
 		return mergeErrors(err, r.Close())

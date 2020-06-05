@@ -13,11 +13,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/db"
-	pb "github.com/iotafs/iotafs/internal/protos"
-	"github.com/iotafs/iotafs/internal/server"
-	"github.com/iotafs/iotafs/internal/store"
-	"github.com/iotafs/iotafs/internal/store/s3"
+	"github.com/jotfs/jotfs/internal/db"
+	pb "github.com/jotfs/jotfs/internal/protos"
+	"github.com/jotfs/jotfs/internal/server"
+	"github.com/jotfs/jotfs/internal/store"
+	"github.com/jotfs/jotfs/internal/store/s3"
 
 	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	defaultDatabase = "./iotafs.db"
+	defaultDatabase = "./jotfs.db"
 	defaultPort     = 6777
 	defaultLogLevel = "warn"
 
@@ -210,14 +210,14 @@ func loggingServerHooks() *twirp.ServerHooks {
 
 	hooks.RequestReceived = func(ctx context.Context) (context.Context, error) {
 		reqID := xid.New().String()
-		twirp.SetHTTPResponseHeader(ctx, "x-iota-request-id", reqID)
+		twirp.SetHTTPResponseHeader(ctx, "x-jotfs-request-id", reqID)
 		ctx = context.WithValue(ctx, reqIDKey, xid.New().String())
 		ctx = context.WithValue(ctx, receivedAtKey, time.Now())
 		return ctx, nil
 	}
 
 	hooks.Error = func(ctx context.Context, err twirp.Error) context.Context {
-		ctx = context.WithValue(ctx, msgKey, err.Msg())
+		ctx = context.WithValue(ctx, msgKey, err.Error())
 		return ctx
 	}
 
@@ -317,7 +317,7 @@ func getLoggerLevel(s string) zerolog.Level {
 }
 
 var (
-	configFileName = flag.String("config", "iotafs.toml", "path to config file")
+	configFileName = flag.String("config", "jotfs.toml", "path to config file")
 	dbName         = flag.String("db", "", "override the database file path")
 	debug          = flag.Bool("debug", false, "output debug logs")
 )
@@ -345,9 +345,11 @@ func run() error {
 	// Configure the logger
 	if *debug {
 		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
+		fmt.Println("Debug mode enabled")
 	} else {
 		level := getLoggerLevel(cfg.Server.LogLevel)
 		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(level)
+		fmt.Printf("Logging level: %s\n", level.String())
 	}
 
 	adapter, err := openDB(cfg.Server.Database)
@@ -401,7 +403,7 @@ func run() error {
 		Params:            *chunkerParams,
 	})
 	srv.SetLogger(logger)
-	srvHandler := pb.NewIotaFSServer(srv, loggingServerHooks())
+	srvHandler := pb.NewJotFSServer(srv, loggingServerHooks())
 
 	mux := http.NewServeMux()
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
@@ -436,7 +438,7 @@ func logHandler(handler http.HandlerFunc, name string) http.HandlerFunc {
 		elapsedMillis := time.Since(start).Milliseconds()
 		reqID := xid.New().String()
 
-		w.Header().Set("x-iota-request-id", reqID)
+		w.Header().Set("x-jotfs-request-id", reqID)
 
 		rpcLogger := logger.With().
 			Str("method", name).

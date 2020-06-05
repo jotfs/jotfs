@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/iotafs/iotafs/internal/store"
+	"github.com/jotfs/jotfs/internal/store"
 
 	"github.com/stretchr/testify/assert"
 )
 
-const bucket = "iotafs-testing-s3"
+const bucket = "jotfs-testing-s3"
 
 var cfg = Config{
 	Endpoint:   "localhost:9000",

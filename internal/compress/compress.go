@@ -12,8 +12,8 @@ type Mode uint8
 
 // Data compression modes
 const (
-	None Mode = 0
-	Zstd Mode = 1
+	Zstd Mode = 0
+	None Mode = 1
 )
 
 // AsUint8 converts a compression mode to a uint8.

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/sum"
 	"github.com/stretchr/testify/assert"
 )
 

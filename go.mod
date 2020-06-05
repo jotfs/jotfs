@@ -1,4 +1,4 @@
-module github.com/iotafs/iotafs
+module github.com/jotfs/jotfs
 
 go 1.14
 

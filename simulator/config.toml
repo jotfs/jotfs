@@ -1,5 +1,5 @@
 [server]
-database = "iotafs.db"
+database = "jotfs.db"
 enable_versioning = false
 avg_chunk_kib = 1024
 port = 6776
@@ -10,4 +10,4 @@ secret_key = "minioadmin"
 path_style = true
 disable_ssl = true
 endpoint = "localhost:9001"
-bucket = "iotafs-test"
+bucket = "jotfs-test"

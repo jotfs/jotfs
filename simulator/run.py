@@ -44,25 +44,25 @@ if not os.path.exists(MINIO_DIR):
     os.mkdir(MINIO_DIR)
 
 
-cmd_preamble = ["iota", "--endpoint", ENDPOINT]
+cmd_preamble = ["jot", "--endpoint", ENDPOINT]
 
 
 def upload_file(name):
-    """Uploads a file using the iota CLI tool."""
-    subprocess.check_output(cmd_preamble + ["cp", name, f"iota://{name}"])
+    """Uploads a file using the jot CLI tool."""
+    subprocess.check_output(cmd_preamble + ["cp", name, f"jot://{name}"])
 
 
 def download_file(src, dst):
-    """Downloads a file using the iota CLI tool."""
-    subprocess.check_output(cmd_preamble + ["cp", f"iota://{src}", dst])
+    """Downloads a file using the jot CLI tool."""
+    subprocess.check_output(cmd_preamble + ["cp", f"jot://{src}", dst])
 
 def delete_file(name):
-    """Deletes a file using the iota CLI tool."""
+    """Deletes a file using the jot CLI tool."""
     subprocess.check_output(cmd_preamble + ["rm", name])
 
 def vacuum():
     """
-    Runs a manual vacuum on the server using the iota CLI tool. Returns the vacuum ID.
+    Runs a manual vacuum on the server using the jot CLI tool. Returns the vacuum ID.
     """
     out = subprocess.check_output(cmd_preamble + ["admin", "start-vacuum"])
     out = out.decode()
@@ -221,14 +221,14 @@ def run(n):
 
 
 def setup():
-    """Starts the minio & iotafs servers."""
+    """Starts the Minio & JotFS servers."""
     processes = []
     try:
         minio_p = subprocess.Popen(["./bin/minio", "server", "--quiet", "--address", CFG["store"]["endpoint"], MINIO_DIR])
         processes.append(minio_p)
         s3.create_bucket(Bucket=BUCKET)
-        iotafs_p = subprocess.Popen(["./bin/iotafs", "-config", "config.toml", "-db", DBNAME, "-debug"])
-        processes.append(iotafs_p)
+        jotfs_p = subprocess.Popen(["./bin/jotfs", "-config", "config.toml", "-db", DBNAME, "-debug"])
+        processes.append(jotfs_p)
         return processes
     except Exception as e:
         for p in processes:
@@ -237,7 +237,7 @@ def setup():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="execute IotaFS integration tests")
+    parser = argparse.ArgumentParser(description="execute JotFS integration tests")
     parser.add_argument("-n", type=int, help="number of files to generate", default=10)
     parser.add_argument("--seed", type=int, help="random number generator seed", default=1)
     args = parser.parse_args()

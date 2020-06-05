@@ -28,11 +28,11 @@ import io "io"
 import json "encoding/json"
 import url "net/url"
 
-// ================
-// IotaFS Interface
-// ================
+// ===============
+// JotFS Interface
+// ===============
 
-type IotaFS interface {
+type JotFS interface {
 	ChunksExist(context.Context, *ChunksExistRequest) (*ChunksExistResponse, error)
 
 	CreateFile(context.Context, *File) (*FileID, error)
@@ -56,19 +56,19 @@ type IotaFS interface {
 	ServerStats(context.Context, *Empty) (*Stats, error)
 }
 
-// ======================
-// IotaFS Protobuf Client
-// ======================
+// =====================
+// JotFS Protobuf Client
+// =====================
 
-type iotaFSProtobufClient struct {
+type jotFSProtobufClient struct {
 	client HTTPClient
 	urls   [11]string
 	opts   twirp.ClientOptions
 }
 
-// NewIotaFSProtobufClient creates a Protobuf client that implements the IotaFS interface.
+// NewJotFSProtobufClient creates a Protobuf client that implements the JotFS interface.
 // It communicates using Protobuf and can be configured with a custom HTTPClient.
-func NewIotaFSProtobufClient(addr string, client HTTPClient, opts ...twirp.ClientOption) IotaFS {
+func NewJotFSProtobufClient(addr string, client HTTPClient, opts ...twirp.ClientOption) JotFS {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -78,7 +78,7 @@ func NewIotaFSProtobufClient(addr string, client HTTPClient, opts ...twirp.Clien
 		o(&clientOpts)
 	}
 
-	prefix := urlBase(addr) + IotaFSPathPrefix
+	prefix := urlBase(addr) + JotFSPathPrefix
 	urls := [11]string{
 		prefix + "ChunksExist",
 		prefix + "CreateFile",
@@ -93,16 +93,16 @@ func NewIotaFSProtobufClient(addr string, client HTTPClient, opts ...twirp.Clien
 		prefix + "ServerStats",
 	}
 
-	return &iotaFSProtobufClient{
+	return &jotFSProtobufClient{
 		client: client,
 		urls:   urls,
 		opts:   clientOpts,
 	}
 }
 
-func (c *iotaFSProtobufClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
+func (c *jotFSProtobufClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	out := new(ChunksExistResponse)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
@@ -120,9 +120,9 @@ func (c *iotaFSProtobufClient) ChunksExist(ctx context.Context, in *ChunksExistR
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
+func (c *jotFSProtobufClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	out := new(FileID)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
@@ -140,9 +140,9 @@ func (c *iotaFSProtobufClient) CreateFile(ctx context.Context, in *File) (*FileI
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) List(ctx context.Context, in *ListRequest) (*ListResponse, error) {
+func (c *jotFSProtobufClient) List(ctx context.Context, in *ListRequest) (*ListResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "List")
 	out := new(ListResponse)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
@@ -160,9 +160,9 @@ func (c *iotaFSProtobufClient) List(ctx context.Context, in *ListRequest) (*List
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) Head(ctx context.Context, in *HeadRequest) (*HeadResponse, error) {
+func (c *jotFSProtobufClient) Head(ctx context.Context, in *HeadRequest) (*HeadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Head")
 	out := new(HeadResponse)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
@@ -180,9 +180,9 @@ func (c *iotaFSProtobufClient) Head(ctx context.Context, in *HeadRequest) (*Head
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) Download(ctx context.Context, in *FileID) (*DownloadResponse, error) {
+func (c *jotFSProtobufClient) Download(ctx context.Context, in *FileID) (*DownloadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Download")
 	out := new(DownloadResponse)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
@@ -200,9 +200,9 @@ func (c *iotaFSProtobufClient) Download(ctx context.Context, in *FileID) (*Downl
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) Copy(ctx context.Context, in *CopyRequest) (*FileID, error) {
+func (c *jotFSProtobufClient) Copy(ctx context.Context, in *CopyRequest) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Copy")
 	out := new(FileID)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
@@ -220,9 +220,9 @@ func (c *iotaFSProtobufClient) Copy(ctx context.Context, in *CopyRequest) (*File
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) Delete(ctx context.Context, in *FileID) (*Empty, error) {
+func (c *jotFSProtobufClient) Delete(ctx context.Context, in *FileID) (*Empty, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Delete")
 	out := new(Empty)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
@@ -240,9 +240,9 @@ func (c *iotaFSProtobufClient) Delete(ctx context.Context, in *FileID) (*Empty, 
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) GetChunkerParams(ctx context.Context, in *Empty) (*ChunkerParams, error) {
+func (c *jotFSProtobufClient) GetChunkerParams(ctx context.Context, in *Empty) (*ChunkerParams, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "GetChunkerParams")
 	out := new(ChunkerParams)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[7], in, out)
@@ -260,9 +260,9 @@ func (c *iotaFSProtobufClient) GetChunkerParams(ctx context.Context, in *Empty) 
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) StartVacuum(ctx context.Context, in *Empty) (*VacuumID, error) {
+func (c *jotFSProtobufClient) StartVacuum(ctx context.Context, in *Empty) (*VacuumID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "StartVacuum")
 	out := new(VacuumID)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[8], in, out)
@@ -280,9 +280,9 @@ func (c *iotaFSProtobufClient) StartVacuum(ctx context.Context, in *Empty) (*Vac
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) VacuumStatus(ctx context.Context, in *VacuumID) (*Vacuum, error) {
+func (c *jotFSProtobufClient) VacuumStatus(ctx context.Context, in *VacuumID) (*Vacuum, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "VacuumStatus")
 	out := new(Vacuum)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[9], in, out)
@@ -300,9 +300,9 @@ func (c *iotaFSProtobufClient) VacuumStatus(ctx context.Context, in *VacuumID) (
 	return out, nil
 }
 
-func (c *iotaFSProtobufClient) ServerStats(ctx context.Context, in *Empty) (*Stats, error) {
+func (c *jotFSProtobufClient) ServerStats(ctx context.Context, in *Empty) (*Stats, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "ServerStats")
 	out := new(Stats)
 	err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[10], in, out)
@@ -320,19 +320,19 @@ func (c *iotaFSProtobufClient) ServerStats(ctx context.Context, in *Empty) (*Sta
 	return out, nil
 }
 
-// ==================
-// IotaFS JSON Client
-// ==================
+// =================
+// JotFS JSON Client
+// =================
 
-type iotaFSJSONClient struct {
+type jotFSJSONClient struct {
 	client HTTPClient
 	urls   [11]string
 	opts   twirp.ClientOptions
 }
 
-// NewIotaFSJSONClient creates a JSON client that implements the IotaFS interface.
+// NewJotFSJSONClient creates a JSON client that implements the JotFS interface.
 // It communicates using JSON and can be configured with a custom HTTPClient.
-func NewIotaFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOption) IotaFS {
+func NewJotFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOption) JotFS {
 	if c, ok := client.(*http.Client); ok {
 		client = withoutRedirects(c)
 	}
@@ -342,7 +342,7 @@ func NewIotaFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOpt
 		o(&clientOpts)
 	}
 
-	prefix := urlBase(addr) + IotaFSPathPrefix
+	prefix := urlBase(addr) + JotFSPathPrefix
 	urls := [11]string{
 		prefix + "ChunksExist",
 		prefix + "CreateFile",
@@ -357,16 +357,16 @@ func NewIotaFSJSONClient(addr string, client HTTPClient, opts ...twirp.ClientOpt
 		prefix + "ServerStats",
 	}
 
-	return &iotaFSJSONClient{
+	return &jotFSJSONClient{
 		client: client,
 		urls:   urls,
 		opts:   clientOpts,
 	}
 }
 
-func (c *iotaFSJSONClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
+func (c *jotFSJSONClient) ChunksExist(ctx context.Context, in *ChunksExistRequest) (*ChunksExistResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	out := new(ChunksExistResponse)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
@@ -384,9 +384,9 @@ func (c *iotaFSJSONClient) ChunksExist(ctx context.Context, in *ChunksExistReque
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
+func (c *jotFSJSONClient) CreateFile(ctx context.Context, in *File) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	out := new(FileID)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
@@ -404,9 +404,9 @@ func (c *iotaFSJSONClient) CreateFile(ctx context.Context, in *File) (*FileID, e
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) List(ctx context.Context, in *ListRequest) (*ListResponse, error) {
+func (c *jotFSJSONClient) List(ctx context.Context, in *ListRequest) (*ListResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "List")
 	out := new(ListResponse)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[2], in, out)
@@ -424,9 +424,9 @@ func (c *iotaFSJSONClient) List(ctx context.Context, in *ListRequest) (*ListResp
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) Head(ctx context.Context, in *HeadRequest) (*HeadResponse, error) {
+func (c *jotFSJSONClient) Head(ctx context.Context, in *HeadRequest) (*HeadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Head")
 	out := new(HeadResponse)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[3], in, out)
@@ -444,9 +444,9 @@ func (c *iotaFSJSONClient) Head(ctx context.Context, in *HeadRequest) (*HeadResp
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) Download(ctx context.Context, in *FileID) (*DownloadResponse, error) {
+func (c *jotFSJSONClient) Download(ctx context.Context, in *FileID) (*DownloadResponse, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Download")
 	out := new(DownloadResponse)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[4], in, out)
@@ -464,9 +464,9 @@ func (c *iotaFSJSONClient) Download(ctx context.Context, in *FileID) (*DownloadR
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) Copy(ctx context.Context, in *CopyRequest) (*FileID, error) {
+func (c *jotFSJSONClient) Copy(ctx context.Context, in *CopyRequest) (*FileID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Copy")
 	out := new(FileID)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[5], in, out)
@@ -484,9 +484,9 @@ func (c *iotaFSJSONClient) Copy(ctx context.Context, in *CopyRequest) (*FileID, 
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) Delete(ctx context.Context, in *FileID) (*Empty, error) {
+func (c *jotFSJSONClient) Delete(ctx context.Context, in *FileID) (*Empty, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "Delete")
 	out := new(Empty)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[6], in, out)
@@ -504,9 +504,9 @@ func (c *iotaFSJSONClient) Delete(ctx context.Context, in *FileID) (*Empty, erro
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) GetChunkerParams(ctx context.Context, in *Empty) (*ChunkerParams, error) {
+func (c *jotFSJSONClient) GetChunkerParams(ctx context.Context, in *Empty) (*ChunkerParams, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "GetChunkerParams")
 	out := new(ChunkerParams)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[7], in, out)
@@ -524,9 +524,9 @@ func (c *iotaFSJSONClient) GetChunkerParams(ctx context.Context, in *Empty) (*Ch
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) StartVacuum(ctx context.Context, in *Empty) (*VacuumID, error) {
+func (c *jotFSJSONClient) StartVacuum(ctx context.Context, in *Empty) (*VacuumID, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "StartVacuum")
 	out := new(VacuumID)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[8], in, out)
@@ -544,9 +544,9 @@ func (c *iotaFSJSONClient) StartVacuum(ctx context.Context, in *Empty) (*VacuumI
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) VacuumStatus(ctx context.Context, in *VacuumID) (*Vacuum, error) {
+func (c *jotFSJSONClient) VacuumStatus(ctx context.Context, in *VacuumID) (*Vacuum, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "VacuumStatus")
 	out := new(Vacuum)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[9], in, out)
@@ -564,9 +564,9 @@ func (c *iotaFSJSONClient) VacuumStatus(ctx context.Context, in *VacuumID) (*Vac
 	return out, nil
 }
 
-func (c *iotaFSJSONClient) ServerStats(ctx context.Context, in *Empty) (*Stats, error) {
+func (c *jotFSJSONClient) ServerStats(ctx context.Context, in *Empty) (*Stats, error) {
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithMethodName(ctx, "ServerStats")
 	out := new(Stats)
 	err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[10], in, out)
@@ -584,37 +584,37 @@ func (c *iotaFSJSONClient) ServerStats(ctx context.Context, in *Empty) (*Stats, 
 	return out, nil
 }
 
-// =====================
-// IotaFS Server Handler
-// =====================
+// ====================
+// JotFS Server Handler
+// ====================
 
-type iotaFSServer struct {
-	IotaFS
+type jotFSServer struct {
+	JotFS
 	hooks *twirp.ServerHooks
 }
 
-func NewIotaFSServer(svc IotaFS, hooks *twirp.ServerHooks) TwirpServer {
-	return &iotaFSServer{
-		IotaFS: svc,
-		hooks:  hooks,
+func NewJotFSServer(svc JotFS, hooks *twirp.ServerHooks) TwirpServer {
+	return &jotFSServer{
+		JotFS: svc,
+		hooks: hooks,
 	}
 }
 
 // writeError writes an HTTP response with a valid Twirp error format, and triggers hooks.
 // If err is not a twirp.Error, it will get wrapped with twirp.InternalErrorWith(err)
-func (s *iotaFSServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
+func (s *jotFSServer) writeError(ctx context.Context, resp http.ResponseWriter, err error) {
 	writeError(ctx, resp, err, s.hooks)
 }
 
-// IotaFSPathPrefix is used for all URL paths on a twirp IotaFS server.
-// Requests are always: POST IotaFSPathPrefix/method
+// JotFSPathPrefix is used for all URL paths on a twirp JotFS server.
+// Requests are always: POST JotFSPathPrefix/method
 // It can be used in an HTTP mux to route twirp requests along with non-twirp requests on other routes.
-const IotaFSPathPrefix = "/twirp/server.IotaFS/"
+const JotFSPathPrefix = "/twirp/server.JotFS/"
 
-func (s *iotaFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	ctx = ctxsetters.WithPackageName(ctx, "server")
-	ctx = ctxsetters.WithServiceName(ctx, "IotaFS")
+	ctx = ctxsetters.WithServiceName(ctx, "JotFS")
 	ctx = ctxsetters.WithResponseWriter(ctx, resp)
 
 	var err error
@@ -632,37 +632,37 @@ func (s *iotaFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 
 	switch req.URL.Path {
-	case "/twirp/server.IotaFS/ChunksExist":
+	case "/twirp/server.JotFS/ChunksExist":
 		s.serveChunksExist(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/CreateFile":
+	case "/twirp/server.JotFS/CreateFile":
 		s.serveCreateFile(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/List":
+	case "/twirp/server.JotFS/List":
 		s.serveList(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/Head":
+	case "/twirp/server.JotFS/Head":
 		s.serveHead(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/Download":
+	case "/twirp/server.JotFS/Download":
 		s.serveDownload(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/Copy":
+	case "/twirp/server.JotFS/Copy":
 		s.serveCopy(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/Delete":
+	case "/twirp/server.JotFS/Delete":
 		s.serveDelete(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/GetChunkerParams":
+	case "/twirp/server.JotFS/GetChunkerParams":
 		s.serveGetChunkerParams(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/StartVacuum":
+	case "/twirp/server.JotFS/StartVacuum":
 		s.serveStartVacuum(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/VacuumStatus":
+	case "/twirp/server.JotFS/VacuumStatus":
 		s.serveVacuumStatus(ctx, resp, req)
 		return
-	case "/twirp/server.IotaFS/ServerStats":
+	case "/twirp/server.JotFS/ServerStats":
 		s.serveServerStats(ctx, resp, req)
 		return
 	default:
@@ -673,7 +673,7 @@ func (s *iotaFSServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (s *iotaFSServer) serveChunksExist(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveChunksExist(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -691,7 +691,7 @@ func (s *iotaFSServer) serveChunksExist(ctx context.Context, resp http.ResponseW
 	}
 }
 
-func (s *iotaFSServer) serveChunksExistJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveChunksExistJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -711,7 +711,7 @@ func (s *iotaFSServer) serveChunksExistJSON(ctx context.Context, resp http.Respo
 	var respContent *ChunksExistResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.ChunksExist(ctx, reqContent)
+		respContent, err = s.JotFS.ChunksExist(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -746,7 +746,7 @@ func (s *iotaFSServer) serveChunksExistJSON(ctx context.Context, resp http.Respo
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveChunksExistProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveChunksExistProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "ChunksExist")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -770,7 +770,7 @@ func (s *iotaFSServer) serveChunksExistProtobuf(ctx context.Context, resp http.R
 	var respContent *ChunksExistResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.ChunksExist(ctx, reqContent)
+		respContent, err = s.JotFS.ChunksExist(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -802,7 +802,7 @@ func (s *iotaFSServer) serveChunksExistProtobuf(ctx context.Context, resp http.R
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveCreateFile(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCreateFile(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -820,7 +820,7 @@ func (s *iotaFSServer) serveCreateFile(ctx context.Context, resp http.ResponseWr
 	}
 }
 
-func (s *iotaFSServer) serveCreateFileJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCreateFileJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -840,7 +840,7 @@ func (s *iotaFSServer) serveCreateFileJSON(ctx context.Context, resp http.Respon
 	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.CreateFile(ctx, reqContent)
+		respContent, err = s.JotFS.CreateFile(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -875,7 +875,7 @@ func (s *iotaFSServer) serveCreateFileJSON(ctx context.Context, resp http.Respon
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "CreateFile")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -899,7 +899,7 @@ func (s *iotaFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.Re
 	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.CreateFile(ctx, reqContent)
+		respContent, err = s.JotFS.CreateFile(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -931,7 +931,7 @@ func (s *iotaFSServer) serveCreateFileProtobuf(ctx context.Context, resp http.Re
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveList(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveList(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -949,7 +949,7 @@ func (s *iotaFSServer) serveList(ctx context.Context, resp http.ResponseWriter, 
 	}
 }
 
-func (s *iotaFSServer) serveListJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveListJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "List")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -969,7 +969,7 @@ func (s *iotaFSServer) serveListJSON(ctx context.Context, resp http.ResponseWrit
 	var respContent *ListResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.List(ctx, reqContent)
+		respContent, err = s.JotFS.List(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1004,7 +1004,7 @@ func (s *iotaFSServer) serveListJSON(ctx context.Context, resp http.ResponseWrit
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveListProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveListProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "List")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1028,7 +1028,7 @@ func (s *iotaFSServer) serveListProtobuf(ctx context.Context, resp http.Response
 	var respContent *ListResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.List(ctx, reqContent)
+		respContent, err = s.JotFS.List(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1060,7 +1060,7 @@ func (s *iotaFSServer) serveListProtobuf(ctx context.Context, resp http.Response
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveHead(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveHead(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1078,7 +1078,7 @@ func (s *iotaFSServer) serveHead(ctx context.Context, resp http.ResponseWriter, 
 	}
 }
 
-func (s *iotaFSServer) serveHeadJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveHeadJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Head")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1098,7 +1098,7 @@ func (s *iotaFSServer) serveHeadJSON(ctx context.Context, resp http.ResponseWrit
 	var respContent *HeadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Head(ctx, reqContent)
+		respContent, err = s.JotFS.Head(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1133,7 +1133,7 @@ func (s *iotaFSServer) serveHeadJSON(ctx context.Context, resp http.ResponseWrit
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveHeadProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveHeadProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Head")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1157,7 +1157,7 @@ func (s *iotaFSServer) serveHeadProtobuf(ctx context.Context, resp http.Response
 	var respContent *HeadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Head(ctx, reqContent)
+		respContent, err = s.JotFS.Head(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1189,7 +1189,7 @@ func (s *iotaFSServer) serveHeadProtobuf(ctx context.Context, resp http.Response
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveDownload(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDownload(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1207,7 +1207,7 @@ func (s *iotaFSServer) serveDownload(ctx context.Context, resp http.ResponseWrit
 	}
 }
 
-func (s *iotaFSServer) serveDownloadJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDownloadJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Download")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1227,7 +1227,7 @@ func (s *iotaFSServer) serveDownloadJSON(ctx context.Context, resp http.Response
 	var respContent *DownloadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Download(ctx, reqContent)
+		respContent, err = s.JotFS.Download(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1262,7 +1262,7 @@ func (s *iotaFSServer) serveDownloadJSON(ctx context.Context, resp http.Response
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveDownloadProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDownloadProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Download")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1286,7 +1286,7 @@ func (s *iotaFSServer) serveDownloadProtobuf(ctx context.Context, resp http.Resp
 	var respContent *DownloadResponse
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Download(ctx, reqContent)
+		respContent, err = s.JotFS.Download(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1318,7 +1318,7 @@ func (s *iotaFSServer) serveDownloadProtobuf(ctx context.Context, resp http.Resp
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveCopy(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCopy(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1336,7 +1336,7 @@ func (s *iotaFSServer) serveCopy(ctx context.Context, resp http.ResponseWriter, 
 	}
 }
 
-func (s *iotaFSServer) serveCopyJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCopyJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Copy")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1356,7 +1356,7 @@ func (s *iotaFSServer) serveCopyJSON(ctx context.Context, resp http.ResponseWrit
 	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Copy(ctx, reqContent)
+		respContent, err = s.JotFS.Copy(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1391,7 +1391,7 @@ func (s *iotaFSServer) serveCopyJSON(ctx context.Context, resp http.ResponseWrit
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveCopyProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveCopyProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Copy")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1415,7 +1415,7 @@ func (s *iotaFSServer) serveCopyProtobuf(ctx context.Context, resp http.Response
 	var respContent *FileID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Copy(ctx, reqContent)
+		respContent, err = s.JotFS.Copy(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1447,7 +1447,7 @@ func (s *iotaFSServer) serveCopyProtobuf(ctx context.Context, resp http.Response
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveDelete(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDelete(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1465,7 +1465,7 @@ func (s *iotaFSServer) serveDelete(ctx context.Context, resp http.ResponseWriter
 	}
 }
 
-func (s *iotaFSServer) serveDeleteJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDeleteJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Delete")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1485,7 +1485,7 @@ func (s *iotaFSServer) serveDeleteJSON(ctx context.Context, resp http.ResponseWr
 	var respContent *Empty
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Delete(ctx, reqContent)
+		respContent, err = s.JotFS.Delete(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1520,7 +1520,7 @@ func (s *iotaFSServer) serveDeleteJSON(ctx context.Context, resp http.ResponseWr
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveDeleteProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveDeleteProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "Delete")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1544,7 +1544,7 @@ func (s *iotaFSServer) serveDeleteProtobuf(ctx context.Context, resp http.Respon
 	var respContent *Empty
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.Delete(ctx, reqContent)
+		respContent, err = s.JotFS.Delete(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1576,7 +1576,7 @@ func (s *iotaFSServer) serveDeleteProtobuf(ctx context.Context, resp http.Respon
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveGetChunkerParams(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveGetChunkerParams(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1594,7 +1594,7 @@ func (s *iotaFSServer) serveGetChunkerParams(ctx context.Context, resp http.Resp
 	}
 }
 
-func (s *iotaFSServer) serveGetChunkerParamsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveGetChunkerParamsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "GetChunkerParams")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1614,7 +1614,7 @@ func (s *iotaFSServer) serveGetChunkerParamsJSON(ctx context.Context, resp http.
 	var respContent *ChunkerParams
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.GetChunkerParams(ctx, reqContent)
+		respContent, err = s.JotFS.GetChunkerParams(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1649,7 +1649,7 @@ func (s *iotaFSServer) serveGetChunkerParamsJSON(ctx context.Context, resp http.
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveGetChunkerParamsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveGetChunkerParamsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "GetChunkerParams")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1673,7 +1673,7 @@ func (s *iotaFSServer) serveGetChunkerParamsProtobuf(ctx context.Context, resp h
 	var respContent *ChunkerParams
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.GetChunkerParams(ctx, reqContent)
+		respContent, err = s.JotFS.GetChunkerParams(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1705,7 +1705,7 @@ func (s *iotaFSServer) serveGetChunkerParamsProtobuf(ctx context.Context, resp h
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveStartVacuum(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveStartVacuum(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1723,7 +1723,7 @@ func (s *iotaFSServer) serveStartVacuum(ctx context.Context, resp http.ResponseW
 	}
 }
 
-func (s *iotaFSServer) serveStartVacuumJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveStartVacuumJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "StartVacuum")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1743,7 +1743,7 @@ func (s *iotaFSServer) serveStartVacuumJSON(ctx context.Context, resp http.Respo
 	var respContent *VacuumID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.StartVacuum(ctx, reqContent)
+		respContent, err = s.JotFS.StartVacuum(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1778,7 +1778,7 @@ func (s *iotaFSServer) serveStartVacuumJSON(ctx context.Context, resp http.Respo
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveStartVacuumProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveStartVacuumProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "StartVacuum")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1802,7 +1802,7 @@ func (s *iotaFSServer) serveStartVacuumProtobuf(ctx context.Context, resp http.R
 	var respContent *VacuumID
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.StartVacuum(ctx, reqContent)
+		respContent, err = s.JotFS.StartVacuum(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1834,7 +1834,7 @@ func (s *iotaFSServer) serveStartVacuumProtobuf(ctx context.Context, resp http.R
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveVacuumStatus(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveVacuumStatus(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1852,7 +1852,7 @@ func (s *iotaFSServer) serveVacuumStatus(ctx context.Context, resp http.Response
 	}
 }
 
-func (s *iotaFSServer) serveVacuumStatusJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveVacuumStatusJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "VacuumStatus")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1872,7 +1872,7 @@ func (s *iotaFSServer) serveVacuumStatusJSON(ctx context.Context, resp http.Resp
 	var respContent *Vacuum
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.VacuumStatus(ctx, reqContent)
+		respContent, err = s.JotFS.VacuumStatus(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1907,7 +1907,7 @@ func (s *iotaFSServer) serveVacuumStatusJSON(ctx context.Context, resp http.Resp
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveVacuumStatusProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveVacuumStatusProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "VacuumStatus")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -1931,7 +1931,7 @@ func (s *iotaFSServer) serveVacuumStatusProtobuf(ctx context.Context, resp http.
 	var respContent *Vacuum
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.VacuumStatus(ctx, reqContent)
+		respContent, err = s.JotFS.VacuumStatus(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -1963,7 +1963,7 @@ func (s *iotaFSServer) serveVacuumStatusProtobuf(ctx context.Context, resp http.
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveServerStats(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveServerStats(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	header := req.Header.Get("Content-Type")
 	i := strings.Index(header, ";")
 	if i == -1 {
@@ -1981,7 +1981,7 @@ func (s *iotaFSServer) serveServerStats(ctx context.Context, resp http.ResponseW
 	}
 }
 
-func (s *iotaFSServer) serveServerStatsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveServerStatsJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "ServerStats")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -2001,7 +2001,7 @@ func (s *iotaFSServer) serveServerStatsJSON(ctx context.Context, resp http.Respo
 	var respContent *Stats
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.ServerStats(ctx, reqContent)
+		respContent, err = s.JotFS.ServerStats(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -2036,7 +2036,7 @@ func (s *iotaFSServer) serveServerStatsJSON(ctx context.Context, resp http.Respo
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) serveServerStatsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+func (s *jotFSServer) serveServerStatsProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
 	var err error
 	ctx = ctxsetters.WithMethodName(ctx, "ServerStats")
 	ctx, err = callRequestRouted(ctx, s.hooks)
@@ -2060,7 +2060,7 @@ func (s *iotaFSServer) serveServerStatsProtobuf(ctx context.Context, resp http.R
 	var respContent *Stats
 	func() {
 		defer ensurePanicResponses(ctx, resp, s.hooks)
-		respContent, err = s.IotaFS.ServerStats(ctx, reqContent)
+		respContent, err = s.JotFS.ServerStats(ctx, reqContent)
 	}()
 
 	if err != nil {
@@ -2092,16 +2092,16 @@ func (s *iotaFSServer) serveServerStatsProtobuf(ctx context.Context, resp http.R
 	callResponseSent(ctx, s.hooks)
 }
 
-func (s *iotaFSServer) ServiceDescriptor() ([]byte, int) {
+func (s *jotFSServer) ServiceDescriptor() ([]byte, int) {
 	return twirpFileDescriptor0, 0
 }
 
-func (s *iotaFSServer) ProtocGenTwirpVersion() string {
+func (s *jotFSServer) ProtocGenTwirpVersion() string {
 	return "v5.10.1"
 }
 
-func (s *iotaFSServer) PathPrefix() string {
-	return IotaFSPathPrefix
+func (s *jotFSServer) PathPrefix() string {
+	return JotFSPathPrefix
 }
 
 // =====
@@ -2620,64 +2620,64 @@ var twirpFileDescriptor0 = []byte{
 	// 980 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0xdd, 0x8e, 0xdb, 0x44,
 	0x14, 0x96, 0x13, 0xc7, 0x9b, 0x1c, 0x3b, 0x3f, 0x9d, 0x6e, 0x51, 0x70, 0xf9, 0x09, 0xd6, 0x6a,
-	0x89, 0x5a, 0xc8, 0xd2, 0x82, 0x50, 0xef, 0xd0, 0xb2, 0xd9, 0x85, 0x95, 0x2a, 0xb1, 0x72, 0x50,
-	0x2f, 0x10, 0x92, 0x35, 0x6b, 0x4f, 0x82, 0xb5, 0xf6, 0x38, 0x78, 0xc6, 0x4b, 0x5a, 0x89, 0x6b,
-	0xde, 0x83, 0x1b, 0x9e, 0x00, 0xf1, 0x7a, 0x68, 0x7e, 0xec, 0xd8, 0x49, 0x7a, 0x81, 0x50, 0xaf,
-	0x32, 0xf3, 0x9d, 0xcf, 0xe7, 0x9c, 0xf9, 0xe6, 0x9c, 0x33, 0x81, 0xf7, 0x63, 0xca, 0x49, 0x4e,
-	0x71, 0x72, 0xb6, 0xce, 0x33, 0x9e, 0xb1, 0x33, 0xbc, 0x8e, 0x67, 0x72, 0x89, 0x2c, 0x46, 0xf2,
-	0x7b, 0x92, 0x7b, 0x53, 0x40, 0x17, 0xbf, 0x14, 0xf4, 0x8e, 0x5d, 0x6e, 0x62, 0xc6, 0x7d, 0xf2,
-	0x6b, 0x41, 0x18, 0x47, 0x08, 0x4c, 0x56, 0xa4, 0x6c, 0x6c, 0x4c, 0xda, 0x53, 0xc7, 0x97, 0x6b,
-	0xef, 0x73, 0x78, 0xd8, 0x60, 0xb2, 0x75, 0x46, 0x19, 0x41, 0xef, 0x81, 0x45, 0x04, 0xa0, 0xc8,
-	0x5d, 0x5f, 0xef, 0xbc, 0x19, 0x98, 0x57, 0x71, 0x42, 0x84, 0x2b, 0x8a, 0x53, 0x32, 0x36, 0x26,
-	0xc6, 0xb4, 0xe7, 0xcb, 0x75, 0xe5, 0xbe, 0x55, 0x73, 0xff, 0x35, 0xd8, 0x17, 0xd9, 0xfa, 0x75,
-	0x99, 0xc1, 0x23, 0xb0, 0x58, 0x1e, 0x06, 0x71, 0x24, 0x3f, 0x74, 0xfc, 0x0e, 0xcb, 0xc3, 0xeb,
-	0x08, 0x8d, 0xa0, 0x1d, 0x31, 0x3e, 0x6e, 0x49, 0x67, 0x62, 0xe9, 0xb9, 0x60, 0x89, 0x38, 0xd7,
-	0x73, 0x61, 0x63, 0x45, 0xaa, 0xf9, 0x62, 0xe9, 0xbd, 0x80, 0xbe, 0x4f, 0x44, 0xc4, 0xff, 0xec,
-	0x75, 0x02, 0xd6, 0x4d, 0x4e, 0x96, 0xf1, 0x46, 0x9c, 0x6f, 0x2d, 0x57, 0xfa, 0x04, 0x7a, 0xe7,
-	0xfd, 0x6d, 0x80, 0xfd, 0xb2, 0x26, 0xd9, 0x5b, 0x78, 0xe8, 0x18, 0x3a, 0x49, 0x9c, 0xc6, 0xca,
-	0xbb, 0xe9, 0xab, 0x0d, 0x3a, 0x85, 0x21, 0x25, 0x1b, 0x1e, 0xac, 0xf1, 0x8a, 0x04, 0x3c, 0xbb,
-	0x23, 0x74, 0xdc, 0x9e, 0x18, 0xd3, 0xb6, 0xdf, 0x17, 0xf0, 0x0d, 0x5e, 0x91, 0x1f, 0x05, 0x88,
-	0xc6, 0x70, 0x44, 0x36, 0x61, 0x52, 0x44, 0x64, 0x6c, 0x4a, 0xb7, 0xe5, 0x56, 0x58, 0x62, 0xaa,
-	0x2c, 0x1d, 0x65, 0xd1, 0x5b, 0xf4, 0x01, 0xf4, 0x30, 0x0b, 0x09, 0x8d, 0x62, 0xba, 0x1a, 0x5b,
-	0x13, 0x63, 0xda, 0xf5, 0xb7, 0x80, 0xf7, 0x33, 0x38, 0x2f, 0xeb, 0xf7, 0x77, 0x02, 0x66, 0x4c,
-	0x97, 0x99, 0xbc, 0x3d, 0xfb, 0xf9, 0x68, 0xa6, 0xea, 0x62, 0x26, 0x35, 0xa5, 0xcb, 0xcc, 0x97,
-	0xd6, 0x43, 0xf9, 0xb6, 0x0e, 0xe4, 0xeb, 0xfd, 0x0e, 0xf6, 0xf7, 0x04, 0x47, 0xb5, 0x3a, 0xda,
-	0xbb, 0xfc, 0xff, 0x27, 0x48, 0xe3, 0x70, 0xe6, 0x81, 0xc3, 0xa9, 0xf0, 0xef, 0xe4, 0x70, 0x67,
-	0xd0, 0x11, 0x5f, 0x32, 0x74, 0x0a, 0x1d, 0xf1, 0x21, 0x7b, 0xab, 0x5f, 0x65, 0xf6, 0x42, 0xe8,
-	0x96, 0xd0, 0x41, 0x29, 0x3e, 0x04, 0x08, 0x73, 0x82, 0x39, 0x89, 0x02, 0xcc, 0x75, 0xcc, 0x9e,
-	0x46, 0xce, 0x55, 0x17, 0xc6, 0x6f, 0x88, 0x14, 0xc2, 0xf4, 0xe5, 0xba, 0x2c, 0x72, 0x73, 0x5b,
-	0xe4, 0x47, 0xd0, 0xb9, 0x4c, 0xd7, 0xfc, 0xb5, 0xf7, 0x91, 0x8a, 0x56, 0x76, 0xd8, 0x6e, 0x34,
-	0x8f, 0x81, 0xb3, 0x20, 0x21, 0x8f, 0x33, 0x2a, 0xfb, 0x18, 0xb9, 0xd0, 0x65, 0xe2, 0x9e, 0x68,
-	0xa8, 0x78, 0xa6, 0x5f, 0xed, 0xab, 0xd0, 0xad, 0xfd, 0xd0, 0xed, 0x2a, 0x34, 0xfa, 0x04, 0x9c,
-	0xdb, 0x24, 0x0b, 0xef, 0x82, 0x6c, 0xb9, 0x64, 0x84, 0xcb, 0xac, 0x4c, 0xdf, 0x96, 0xd8, 0x0f,
-	0x12, 0xf2, 0xfe, 0x30, 0xe0, 0x48, 0x47, 0x45, 0x9f, 0x81, 0x15, 0xca, 0x09, 0xa2, 0x75, 0x3b,
-	0x2e, 0x75, 0xab, 0xa7, 0xe5, 0x6b, 0x8e, 0x08, 0x57, 0xe4, 0x49, 0xd9, 0x94, 0x45, 0x9e, 0xa0,
-	0x8f, 0xc1, 0xce, 0x31, 0x5d, 0x91, 0x80, 0x71, 0x9c, 0x73, 0x2d, 0x0b, 0x48, 0x68, 0x21, 0x10,
-	0xf4, 0x18, 0x7a, 0x8a, 0x40, 0x68, 0xa4, 0x93, 0xe9, 0x4a, 0xe0, 0x92, 0x46, 0xde, 0x37, 0x30,
-	0x9a, 0x67, 0xbf, 0xd1, 0x24, 0xab, 0xd5, 0xc7, 0x53, 0x21, 0x81, 0x8c, 0x5d, 0xe6, 0x34, 0xdc,
-	0xc9, 0xc9, 0xaf, 0x08, 0xde, 0x5f, 0x06, 0xf4, 0x65, 0x8a, 0x24, 0xbf, 0xc1, 0x39, 0x4e, 0x19,
-	0x3a, 0x81, 0x41, 0x1a, 0xd3, 0x40, 0x26, 0x1c, 0x48, 0xbd, 0x94, 0x8e, 0x4e, 0x1a, 0xab, 0xc3,
-	0x2c, 0x84, 0x6e, 0x27, 0x30, 0xc0, 0xf7, 0xab, 0x3a, 0x4b, 0xa9, 0xea, 0xe0, 0xfb, 0x55, 0x83,
-	0x95, 0xe2, 0x4d, 0x9d, 0xd5, 0xd6, 0xbe, 0xf0, 0xa6, 0xce, 0xea, 0xd3, 0x2c, 0x4f, 0x71, 0x12,
-	0xbf, 0xc1, 0x22, 0x2b, 0x7d, 0xca, 0x26, 0xe8, 0xb9, 0xd0, 0x7d, 0x85, 0xc3, 0xa2, 0x48, 0xaf,
-	0xe7, 0x68, 0x00, 0x2d, 0x3d, 0xee, 0x7a, 0x7e, 0x2b, 0x8e, 0xbc, 0x5b, 0xb0, 0x94, 0x4d, 0x4c,
-	0x2c, 0xc6, 0x31, 0x2f, 0x58, 0x39, 0xb1, 0xd4, 0x4e, 0x54, 0xa5, 0x14, 0xb8, 0x51, 0x95, 0x1a,
-	0x39, 0xe7, 0xe2, 0xd2, 0xc3, 0x2c, 0x5d, 0x27, 0x44, 0x13, 0x54, 0x9b, 0xda, 0x15, 0x76, 0xce,
-	0xbd, 0x3f, 0x0d, 0xe8, 0x2c, 0x38, 0xe6, 0x4c, 0xdc, 0x08, 0x2d, 0xd2, 0x60, 0x29, 0xda, 0xa6,
-	0x2c, 0x32, 0x5a, 0xa4, 0xaa, 0x8d, 0x9e, 0xc0, 0x83, 0xd2, 0x18, 0xdc, 0x93, 0x9c, 0xc9, 0x6b,
-	0x50, 0xda, 0x0c, 0x35, 0xe9, 0x95, 0x86, 0xd1, 0x14, 0x46, 0x3c, 0xe3, 0x38, 0x51, 0xae, 0xea,
-	0x02, 0x0d, 0x24, 0x2e, 0x3d, 0x4a, 0x89, 0x4e, 0x61, 0xa8, 0x98, 0x11, 0xe6, 0x58, 0x11, 0xb5,
-	0x48, 0x12, 0x9e, 0x63, 0x8e, 0x05, 0xef, 0xf9, 0x3f, 0x26, 0x58, 0xd7, 0x19, 0xc7, 0x57, 0x0b,
-	0x74, 0x05, 0x76, 0xed, 0x69, 0x43, 0x6e, 0x59, 0x03, 0xfb, 0x2f, 0xa3, 0xfb, 0xf8, 0xa0, 0x4d,
-	0x97, 0xd3, 0x13, 0x80, 0x0b, 0xd9, 0xbd, 0xf2, 0xe5, 0x73, 0xea, 0x63, 0xc1, 0x1d, 0x34, 0x86,
-	0xc4, 0x1c, 0x3d, 0x03, 0x53, 0xcc, 0x61, 0xf4, 0xb0, 0xc4, 0x6b, 0x8f, 0x89, 0x7b, 0xdc, 0x04,
-	0xb5, 0xfb, 0x67, 0x60, 0x8a, 0xe9, 0xb6, 0xfd, 0xa4, 0x36, 0x6a, 0xb7, 0x9f, 0x34, 0x06, 0xe0,
-	0x57, 0xd0, 0x2d, 0x8b, 0x1e, 0xed, 0x64, 0xe0, 0x8e, 0xcb, 0xfd, 0x81, 0xb6, 0x30, 0xc5, 0x5b,
-	0xbc, 0x0d, 0x54, 0x7b, 0x99, 0xf7, 0x0e, 0xf2, 0x29, 0x58, 0x73, 0x22, 0x6e, 0x7e, 0x2f, 0x40,
-	0xbf, 0xdc, 0xcb, 0xf9, 0x84, 0x5e, 0xc0, 0xe8, 0x3b, 0xc2, 0x9b, 0x1d, 0xd4, 0xa4, 0xb8, 0x8f,
-	0x1a, 0xea, 0x56, 0xac, 0x19, 0xd8, 0xb2, 0xc1, 0x75, 0xe1, 0xee, 0x7c, 0x54, 0x8d, 0xdf, 0xaa,
-	0xe6, 0xbf, 0x00, 0x47, 0xad, 0x17, 0xaa, 0xa2, 0xf7, 0x18, 0xdb, 0x43, 0x68, 0x97, 0x4f, 0xc1,
-	0x5e, 0x48, 0x40, 0x95, 0xed, 0x4e, 0x84, 0x6a, 0x2b, 0xad, 0xdf, 0x3e, 0xf8, 0x69, 0xb8, 0xf3,
-	0xc7, 0xea, 0xd6, 0x92, 0xbf, 0x5f, 0xfe, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x4f, 0xb5, 0xce, 0xf5,
-	0x72, 0x09, 0x00, 0x00,
+	0x89, 0x5a, 0xc8, 0xd2, 0x82, 0x50, 0xef, 0xd0, 0xb2, 0xd9, 0x85, 0x45, 0x95, 0x58, 0x39, 0xa8,
+	0x17, 0x08, 0xc9, 0x9a, 0xb5, 0x27, 0xc1, 0x5a, 0x7b, 0x1c, 0x3c, 0xe3, 0x25, 0xad, 0xc4, 0x35,
+	0xef, 0xc1, 0x0d, 0x4f, 0x00, 0xcf, 0x87, 0xe6, 0xc7, 0x8e, 0x9d, 0xa4, 0x17, 0x08, 0x71, 0x95,
+	0x99, 0xef, 0x7c, 0x3e, 0xe7, 0xcc, 0x37, 0xe7, 0x9c, 0x09, 0xbc, 0x1b, 0x53, 0x4e, 0x72, 0x8a,
+	0x93, 0xb3, 0x75, 0x9e, 0xf1, 0x8c, 0x9d, 0xe1, 0x75, 0x3c, 0x93, 0x4b, 0x64, 0x31, 0x92, 0xdf,
+	0x93, 0xdc, 0x9b, 0x02, 0xba, 0xf8, 0xb9, 0xa0, 0x77, 0xec, 0x72, 0x13, 0x33, 0xee, 0x93, 0x5f,
+	0x0a, 0xc2, 0x38, 0x42, 0x60, 0xb2, 0x22, 0x65, 0x63, 0x63, 0xd2, 0x9e, 0x3a, 0xbe, 0x5c, 0x7b,
+	0x9f, 0xc2, 0xc3, 0x06, 0x93, 0xad, 0x33, 0xca, 0x08, 0x7a, 0x07, 0x2c, 0x22, 0x00, 0x45, 0xee,
+	0xfa, 0x7a, 0xe7, 0xcd, 0xc0, 0xbc, 0x8a, 0x13, 0x22, 0x5c, 0x51, 0x9c, 0x92, 0xb1, 0x31, 0x31,
+	0xa6, 0x3d, 0x5f, 0xae, 0x2b, 0xf7, 0xad, 0x9a, 0xfb, 0x2f, 0xc1, 0xbe, 0xc8, 0xd6, 0xaf, 0xcb,
+	0x0c, 0x1e, 0x81, 0xc5, 0xf2, 0x30, 0x88, 0x23, 0xf9, 0xa1, 0xe3, 0x77, 0x58, 0x1e, 0x5e, 0x47,
+	0x68, 0x04, 0xed, 0x88, 0xf1, 0x71, 0x4b, 0x3a, 0x13, 0x4b, 0xcf, 0x05, 0x4b, 0xc4, 0xb9, 0x9e,
+	0x0b, 0x1b, 0x2b, 0x52, 0xcd, 0x17, 0x4b, 0xef, 0x05, 0xf4, 0x7d, 0x22, 0x22, 0xfe, 0x6b, 0xaf,
+	0x13, 0xb0, 0x6e, 0x72, 0xb2, 0x8c, 0x37, 0xe2, 0x7c, 0x6b, 0xb9, 0xd2, 0x27, 0xd0, 0x3b, 0xef,
+	0x2f, 0x03, 0xec, 0x97, 0x35, 0xc9, 0xde, 0xc2, 0x43, 0xc7, 0xd0, 0x49, 0xe2, 0x34, 0x56, 0xde,
+	0x4d, 0x5f, 0x6d, 0xd0, 0x29, 0x0c, 0x29, 0xd9, 0xf0, 0x60, 0x8d, 0x57, 0x24, 0xe0, 0xd9, 0x1d,
+	0xa1, 0xe3, 0xf6, 0xc4, 0x98, 0xb6, 0xfd, 0xbe, 0x80, 0x6f, 0xf0, 0x8a, 0xfc, 0x20, 0x40, 0x34,
+	0x86, 0x23, 0xb2, 0x09, 0x93, 0x22, 0x22, 0x63, 0x53, 0xba, 0x2d, 0xb7, 0xc2, 0x12, 0x53, 0x65,
+	0xe9, 0x28, 0x8b, 0xde, 0xa2, 0xf7, 0xa0, 0x87, 0x59, 0x48, 0x68, 0x14, 0xd3, 0xd5, 0xd8, 0x9a,
+	0x18, 0xd3, 0xae, 0xbf, 0x05, 0xbc, 0x9f, 0xc0, 0x79, 0x59, 0xbf, 0xbf, 0x13, 0x30, 0x63, 0xba,
+	0xcc, 0xe4, 0xed, 0xd9, 0xcf, 0x47, 0x33, 0x55, 0x17, 0x33, 0xa9, 0x29, 0x5d, 0x66, 0xbe, 0xb4,
+	0x1e, 0xca, 0xb7, 0x75, 0x20, 0x5f, 0xef, 0x37, 0xb0, 0xbf, 0x25, 0x38, 0xaa, 0xd5, 0xd1, 0xde,
+	0xe5, 0xff, 0x37, 0x41, 0x1a, 0x87, 0x33, 0x0f, 0x1c, 0x4e, 0x85, 0xff, 0x5f, 0x0e, 0x77, 0x06,
+	0x1d, 0xf1, 0x25, 0x43, 0xa7, 0xd0, 0x11, 0x1f, 0xb2, 0xb7, 0xfa, 0x55, 0x66, 0x2f, 0x84, 0x6e,
+	0x09, 0x1d, 0x94, 0xe2, 0x7d, 0x80, 0x30, 0x27, 0x98, 0x93, 0x28, 0xc0, 0x5c, 0xc7, 0xec, 0x69,
+	0xe4, 0x5c, 0x75, 0x61, 0xfc, 0x86, 0x48, 0x21, 0x4c, 0x5f, 0xae, 0xcb, 0x22, 0x37, 0xb7, 0x45,
+	0x7e, 0x04, 0x9d, 0xcb, 0x74, 0xcd, 0x5f, 0x7b, 0x1f, 0xa8, 0x68, 0x65, 0x87, 0xed, 0x46, 0xf3,
+	0x18, 0x38, 0x0b, 0x12, 0xf2, 0x38, 0xa3, 0xb2, 0x8f, 0x91, 0x0b, 0x5d, 0x26, 0xee, 0x89, 0x86,
+	0x8a, 0x67, 0xfa, 0xd5, 0xbe, 0x0a, 0xdd, 0xda, 0x0f, 0xdd, 0xae, 0x42, 0xa3, 0x8f, 0xc0, 0xb9,
+	0x4d, 0xb2, 0xf0, 0x2e, 0xc8, 0x96, 0x4b, 0x46, 0xb8, 0xcc, 0xca, 0xf4, 0x6d, 0x89, 0x7d, 0x2f,
+	0x21, 0xef, 0x77, 0x03, 0x8e, 0x74, 0x54, 0xf4, 0x09, 0x58, 0xa1, 0x9c, 0x20, 0x5a, 0xb7, 0xe3,
+	0x52, 0xb7, 0x7a, 0x5a, 0xbe, 0xe6, 0x88, 0x70, 0x45, 0x9e, 0x94, 0x4d, 0x59, 0xe4, 0x09, 0xfa,
+	0x10, 0xec, 0x1c, 0xd3, 0x15, 0x09, 0x18, 0xc7, 0x39, 0xd7, 0xb2, 0x80, 0x84, 0x16, 0x02, 0x41,
+	0x8f, 0xa1, 0xa7, 0x08, 0x84, 0x46, 0x3a, 0x99, 0xae, 0x04, 0x2e, 0x69, 0xe4, 0x7d, 0x05, 0xa3,
+	0x79, 0xf6, 0x2b, 0x4d, 0xb2, 0x5a, 0x7d, 0x3c, 0x15, 0x12, 0xc8, 0xd8, 0x65, 0x4e, 0xc3, 0x9d,
+	0x9c, 0xfc, 0x8a, 0xe0, 0xfd, 0x69, 0x40, 0x5f, 0xa6, 0x48, 0xf2, 0x1b, 0x9c, 0xe3, 0x94, 0xa1,
+	0x13, 0x18, 0xa4, 0x31, 0x0d, 0x64, 0xc2, 0x81, 0xd4, 0x4b, 0xe9, 0xe8, 0xa4, 0xb1, 0x3a, 0xcc,
+	0x42, 0xe8, 0x76, 0x02, 0x03, 0x7c, 0xbf, 0xaa, 0xb3, 0x94, 0xaa, 0x0e, 0xbe, 0x5f, 0x35, 0x58,
+	0x29, 0xde, 0xd4, 0x59, 0x6d, 0xed, 0x0b, 0x6f, 0xea, 0xac, 0x3e, 0xcd, 0xf2, 0x14, 0x27, 0xf1,
+	0x1b, 0x2c, 0xb2, 0xd2, 0xa7, 0x6c, 0x82, 0x9e, 0x0b, 0xdd, 0x57, 0x38, 0x2c, 0x8a, 0xf4, 0x7a,
+	0x8e, 0x06, 0xd0, 0xd2, 0xe3, 0xae, 0xe7, 0xb7, 0xe2, 0xc8, 0xbb, 0x05, 0x4b, 0xd9, 0xc4, 0xc4,
+	0x62, 0x1c, 0xf3, 0x82, 0x95, 0x13, 0x4b, 0xed, 0x44, 0x55, 0x4a, 0x81, 0x1b, 0x55, 0xa9, 0x91,
+	0x73, 0x2e, 0x2e, 0x3d, 0xcc, 0xd2, 0x75, 0x42, 0x34, 0x41, 0xb5, 0xa9, 0x5d, 0x61, 0xe7, 0xdc,
+	0xfb, 0xc3, 0x80, 0xce, 0x82, 0x63, 0xce, 0xc4, 0x8d, 0xd0, 0x22, 0x0d, 0x96, 0xa2, 0x6d, 0xca,
+	0x22, 0xa3, 0x45, 0xaa, 0xda, 0xe8, 0x09, 0x3c, 0x28, 0x8d, 0xc1, 0x3d, 0xc9, 0x99, 0xbc, 0x06,
+	0xa5, 0xcd, 0x50, 0x93, 0x5e, 0x69, 0x18, 0x4d, 0x61, 0xc4, 0x33, 0x8e, 0x13, 0xe5, 0xaa, 0x2e,
+	0xd0, 0x40, 0xe2, 0xd2, 0xa3, 0x94, 0xe8, 0x14, 0x86, 0x8a, 0x19, 0x61, 0x8e, 0x15, 0x51, 0x8b,
+	0x24, 0xe1, 0x39, 0xe6, 0x58, 0xf0, 0x9e, 0xff, 0x6d, 0x42, 0xe7, 0xbb, 0x8c, 0x5f, 0x2d, 0xd0,
+	0x15, 0xd8, 0xb5, 0x97, 0x0d, 0xb9, 0x65, 0x09, 0xec, 0x3f, 0x8c, 0xee, 0xe3, 0x83, 0x36, 0x5d,
+	0x4d, 0x4f, 0x00, 0x2e, 0x64, 0xf3, 0xca, 0x87, 0xcf, 0xa9, 0x4f, 0x05, 0x77, 0xd0, 0x98, 0x11,
+	0x73, 0xf4, 0x0c, 0x4c, 0x31, 0x86, 0xd1, 0xc3, 0x12, 0xaf, 0xbd, 0x25, 0xee, 0x71, 0x13, 0xd4,
+	0xee, 0x9f, 0x81, 0x29, 0x86, 0xdb, 0xf6, 0x93, 0xda, 0xa4, 0xdd, 0x7e, 0xd2, 0x98, 0x7f, 0x5f,
+	0x40, 0xb7, 0xac, 0x79, 0xb4, 0x93, 0x81, 0x3b, 0x2e, 0xf7, 0x07, 0xba, 0xc2, 0x14, 0x4f, 0xf1,
+	0x36, 0x50, 0xed, 0x61, 0xde, 0x3b, 0xc8, 0xc7, 0x60, 0xcd, 0x89, 0xb8, 0xf8, 0xbd, 0x00, 0xfd,
+	0x72, 0x2f, 0xc7, 0x13, 0x7a, 0x01, 0xa3, 0x6f, 0x08, 0x6f, 0x36, 0x50, 0x93, 0xe2, 0x3e, 0x6a,
+	0xa8, 0x5b, 0xb1, 0x66, 0x60, 0xcb, 0xfe, 0xd6, 0x75, 0xbb, 0xf3, 0x51, 0x35, 0x7d, 0xab, 0x92,
+	0xff, 0x0c, 0x1c, 0xb5, 0x5e, 0xa8, 0x82, 0xde, 0x63, 0x6c, 0x0f, 0xa1, 0x5d, 0x3e, 0x05, 0x7b,
+	0x21, 0x01, 0x55, 0xb5, 0x3b, 0x11, 0xaa, 0xad, 0xb4, 0x7e, 0xfd, 0xe0, 0xc7, 0xe1, 0xce, 0xff,
+	0xaa, 0x5b, 0x4b, 0xfe, 0x7e, 0xfe, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0xd2, 0xbf, 0x4e, 0x1c,
+	0x71, 0x09, 0x00, 0x00,
 }

@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/object"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/object"
+	"github.com/jotfs/jotfs/internal/sum"
 	"github.com/rs/xid"
 )
 

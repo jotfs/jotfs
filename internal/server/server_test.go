@@ -13,16 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/db"
-	"github.com/iotafs/iotafs/internal/object"
-	pb "github.com/iotafs/iotafs/internal/protos"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/db"
+	"github.com/jotfs/jotfs/internal/object"
+	pb "github.com/jotfs/jotfs/internal/protos"
+	"github.com/jotfs/jotfs/internal/sum"
 
 	"github.com/google/uuid"
-	"github.com/twitchtv/twirp"
-	"github.com/stretchr/testify/assert"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/stretchr/testify/assert"
+	"github.com/twitchtv/twirp"
 )
 
 const maxPackfileSize = 1024 * 1024 * 128
@@ -37,7 +37,7 @@ func TestPackfileUploadHandler(t *testing.T) {
 
 	// Construct the request
 	req := httptest.NewRequest("POST", "/packfile", bytes.NewReader(packfile))
-	req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(s[:]))
+	req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(s[:]))
 
 	w := httptest.NewRecorder()
 	srv.PackfileUploadHandler(w, req)
@@ -79,7 +79,7 @@ func TestPackfileUploadHandlerBadRequest(t *testing.T) {
 	lengths := []int64{0, -1, maxPackfileSize + 1}
 	for _, l := range lengths {
 		req := httptest.NewRequest("POST", "/packfile", bytes.NewReader(packfile))
-		req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(s[:]))
+		req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(s[:]))
 		req.ContentLength = l
 		assert.Equal(t, http.StatusBadRequest, packfileUploadStatus(req))
 	}
@@ -91,12 +91,12 @@ func TestPackfileUploadHandlerBadRequest(t *testing.T) {
 	// Checksum does not match
 	req = httptest.NewRequest("POST", "/packfile", bytes.NewReader(packfile))
 	badSum := make([]byte, sum.Size)
-	req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(badSum))
+	req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(badSum))
 	assert.Equal(t, http.StatusBadRequest, packfileUploadStatus(req))
 
 	// Corrupted packfile
 	req = httptest.NewRequest("POST", "/packfile", bytes.NewReader(packfile[10:]))
-	req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(s[:]))
+	req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(s[:]))
 	assert.Equal(t, http.StatusBadRequest, packfileUploadStatus(req))
 
 }
@@ -109,7 +109,7 @@ func TestCreateFile(t *testing.T) {
 
 	// Upload the packfile so the chunk data exists
 	req := httptest.NewRequest("POST", "/packfile", bytes.NewReader(packfile))
-	req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(s[:]))
+	req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(s[:]))
 	w := httptest.NewRecorder()
 	srv.PackfileUploadHandler(w, req)
 	resp := w.Result()
@@ -394,8 +394,8 @@ func TestMergeErrors(t *testing.T) {
 	err2 := errors.New("2")
 
 	tests := []struct {
-		e error
-		minor error
+		e      error
+		minor  error
 		output error
 	}{
 		{err1, nil, err1},
@@ -417,7 +417,7 @@ func testServer(t *testing.T, versioning bool) (*Server, *mockStore, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	name := filepath.Join(os.TempDir(), "iota-"+id.String())
+	name := filepath.Join(os.TempDir(), "jotfs-"+id.String())
 	adapter, err := db.EmptyDisk(name)
 	if err != nil {
 		t.Fatal(err)
@@ -425,8 +425,8 @@ func testServer(t *testing.T, versioning bool) (*Server, *mockStore, string) {
 	store := newMockStore()
 	cfg := Config{
 		MaxChunkSize:      1024 * 1024 * 8,
-		MaxPackfileSize:   maxPackfileSize,
 		VersioningEnabled: versioning,
+		MaxPackfileSize:   maxPackfileSize,
 	}
 	srv := New(adapter, store, cfg)
 	return srv, store, name
@@ -457,7 +457,7 @@ func genTestPackfile(t *testing.T) []byte {
 func uploadPackfile(t *testing.T, srv *Server, data []byte) {
 	s := sum.Compute(data)
 	req := httptest.NewRequest("POST", "/packfile", bytes.NewReader(data))
-	req.Header.Set("x-iota-checksum", base64.StdEncoding.EncodeToString(s[:]))
+	req.Header.Set("x-jotfs-checksum", base64.StdEncoding.EncodeToString(s[:]))
 	w := httptest.NewRecorder()
 	srv.PackfileUploadHandler(w, req)
 	resp := w.Result()

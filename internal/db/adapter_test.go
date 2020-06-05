@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/object"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/object"
+	"github.com/jotfs/jotfs/internal/sum"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"

@@ -8,8 +8,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/sum"
 )
 
 // PackfileBuilder is used to build a packfile object.

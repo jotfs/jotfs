@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/sum"
 	"github.com/stretchr/testify/assert"
 )
 

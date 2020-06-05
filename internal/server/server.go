@@ -17,12 +17,12 @@ import (
 	"github.com/twitchtv/twirp"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/iotafs/iotafs/internal/db"
-	"github.com/iotafs/iotafs/internal/log"
-	"github.com/iotafs/iotafs/internal/object"
-	pb "github.com/iotafs/iotafs/internal/protos"
-	"github.com/iotafs/iotafs/internal/store"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/db"
+	"github.com/jotfs/jotfs/internal/log"
+	"github.com/jotfs/jotfs/internal/object"
+	pb "github.com/jotfs/jotfs/internal/protos"
+	"github.com/jotfs/jotfs/internal/store"
+	"github.com/jotfs/jotfs/internal/sum"
 )
 
 const maxFilenameSize = 1024
@@ -88,14 +88,14 @@ func (srv *Server) PackfileUploadHandler(w http.ResponseWriter, req *http.Reques
 		return
 	}
 
-	h := req.Header.Get("x-iota-checksum")
+	h := req.Header.Get("x-jotfs-checksum")
 	if h == "" {
-		http.Error(w, "x-iota-checksum required", http.StatusBadRequest)
+		http.Error(w, "x-jotfs-checksum required", http.StatusBadRequest)
 		return
 	}
 	sum, err := sum.FromBase64(h)
 	if err != nil {
-		msg := fmt.Sprintf("invalid x-iota-checksum: %v", err)
+		msg := fmt.Sprintf("invalid x-jotfs-checksum: %v", err)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/iotafs/iotafs/internal/compress"
-	"github.com/iotafs/iotafs/internal/sum"
+	"github.com/jotfs/jotfs/internal/compress"
+	"github.com/jotfs/jotfs/internal/sum"
 )
 
 // maxBlocks is an upper limit on the number of blocks allowed in a packfile.

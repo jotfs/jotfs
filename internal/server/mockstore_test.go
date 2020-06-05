@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/iotafs/iotafs/internal/store"
+	"github.com/jotfs/jotfs/internal/store"
 )
 
 type mockStore struct {
