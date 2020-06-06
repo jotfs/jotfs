@@ -4,4 +4,4 @@
 simulator/data
 simulator/bin
 simulator/test-*
-simulator/env
+**/coverage.txt
