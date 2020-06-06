@@ -283,7 +283,7 @@ func (a *Adapter) GetFile(s sum.Sum) (object.File, error) {
 
 // ListFiles returns a FileInfo slice containing corresponding to files that match the
 // provided prefix. Glob parametrs exclude and include are used to filter the result.
-// Pagination is acheived using the offset and limit parameters. Results are returned
+// Pagination is achieved using the offset and limit parameters. Results are returned
 // in reverse-chronological order by default. Setting ascending to true reverses the
 // order.
 func (a *Adapter) ListFiles(prefix string, offset int64, limit uint64, exclude string, include string, ascending bool) ([]FileInfo, error) {
@@ -366,7 +366,7 @@ func (a *Adapter) GetLatestFileVersion(name string) (FileInfo, error) {
 }
 
 // GetFileVersions returns the versions of a file with a given name. Pagination is
-// acheived with the offset and limit parameters.
+// achieved with the offset and limit parameters.
 func (a *Adapter) GetFileVersions(name string, offset int64, limit uint64, ascending bool) ([]FileInfo, error) {
 	q := `
 	SELECT created_at, size, sum, versioned 
@@ -855,13 +855,16 @@ func (a *Adapter) GetVacuum(id string) (Vacuum, error) {
 	return Vacuum{id, VacuumStatus(status), startedAt, completedAt}, nil
 }
 
+// Stats store high-level statistics for the server -- number of file, number of file
+// versions, total size in bytes of all files, and total size of data stored. 
 type Stats struct {
 	NumFiles        uint64
 	NumFileVersions uint64
-	TotalFilesSize   uint64
+	TotalFilesSize  uint64
 	TotalDataSize   uint64
 }
 
+// GetServerStats returns the Stats for the server.
 func (a *Adapter) GetServerStats() (Stats, error) {
 	var numFiles uint64
 	row := a.db.QueryRow("SELECT count(*) FROM files")

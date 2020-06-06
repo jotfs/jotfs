@@ -9,7 +9,7 @@ import (
 	"github.com/jotfs/jotfs/internal/sum"
 )
 
-const maxChunks = 1_000_000
+const maxChunks = 1000000
 const maxNameSize = 32768
 
 // File represents a file object.

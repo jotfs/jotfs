@@ -244,7 +244,7 @@ func TestDownload(t *testing.T) {
 	assert.NotNil(t, resp)
 
 	// Error if file doesn't exist
-	resp, err = srv.Download(ctx, &pb.FileID{Sum: make([]byte, sum.Size)})
+	_, err = srv.Download(ctx, &pb.FileID{Sum: make([]byte, sum.Size)})
 	assert.True(t, isTwirpError(err, twirp.NotFound))
 }
 

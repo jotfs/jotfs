@@ -122,8 +122,6 @@ func TestPackIndex(t *testing.T) {
 		CreatedAt: time.Now(),
 		Chunks:    []object.Chunk{{Sequence: 0, Size: 100, Sum: sum.Sum{}}},
 	}
-	fs4 := sum.Compute([]byte{4})
-	err = db.InsertFile(file, fs4)
 	err = db.InsertFile(file, sum.Compute([]byte{4}))
 	assert.Error(t, err)
 }
@@ -254,6 +252,7 @@ func TestVacuum(t *testing.T) {
 
 	// Get vacuum
 	vac, err := db.GetVacuum(id)
+	assert.NoError(t, err)
 	assert.Equal(t, startedAt.UnixNano(), vac.StartedAt)
 	assert.Equal(t, VacuumRunning, vac.Status)
 	assert.Equal(t, id, vac.ID)

@@ -27,7 +27,7 @@ func NewPackfileBuilder(w io.Writer) (*PackfileBuilder, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Send everything writen to the packfile through the hash function
+	// Send everything written to the packfile through the hash function
 	w = io.MultiWriter(w, hash)
 	cw := countingWriter{w, 0}
 
