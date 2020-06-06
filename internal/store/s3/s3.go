@@ -39,6 +39,7 @@ func New(cfg Config) (*Store, error) {
 		S3ForcePathStyle: &cfg.PathStyle,
 		DisableSSL:       &cfg.DisableSSL,
 		Credentials:      credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
+		Region:           &cfg.Region,
 	}
 	sess, err := session.NewSession(&acfg)
 	if err != nil {
