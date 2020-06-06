@@ -28,6 +28,7 @@ var cfg = Config{
 	SecretKey:  "minioadmin",
 	DisableSSL: true,
 	PathStyle:  true,
+	Region:     "eu-west-1",
 }
 
 var s *Store
