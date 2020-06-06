@@ -450,9 +450,9 @@ func logHandler(handler http.HandlerFunc, name string) http.HandlerFunc {
 		if 200 <= ww.statusCode && ww.statusCode < 300 {
 			rpcLogger.Info().Msg("")
 		} else if 400 <= ww.statusCode && ww.statusCode < 500 {
-			rpcLogger.Warn().Msg("")
+			rpcLogger.Warn().Msg(ww.errMsg)
 		} else {
-			rpcLogger.Error().Msg("")
+			rpcLogger.Error().Msg(ww.errMsg)
 		}
 	}
 }
