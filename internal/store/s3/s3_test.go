@@ -23,7 +23,7 @@ import (
 const bucket = "jotfs-testing-s3"
 
 var cfg = Config{
-	Endpoint:   "localhost:9000",
+	Endpoint:   "localhost:9003",
 	AccessKey:  "minioadmin",
 	SecretKey:  "minioadmin",
 	DisableSSL: true,
