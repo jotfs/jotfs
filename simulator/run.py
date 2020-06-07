@@ -146,18 +146,17 @@ def check_pack_checksums():
             raise ValueError("pack {checksum}: checksum {c} does not match")
 
 
-def check_db_files(names):
-    """Checks that each file in the database is in the set names."""
-    conn = sqlite3.connect(DBNAME)
-    c = conn.cursor()
-    db_names = []
-    for row in c.execute("SELECT name FROM files"):
-        db_names.append(row[0])
-
-    names = sorted(names)
-    db_names = sorted(db_names)
-    if names != db_names:
-        raise ValueError(f"file names don't match\n{names}\n{db_names}")
+def download_and_validate_checksum(name, checksum):
+    """Downloads a file and validates its MD5 checksum."""
+    dst = os.path.join(DOWNLOADS_DIR, os.path.basename(name))
+    download_file(src=name, dst=dst)
+    md5 = hashlib.md5()
+    for chunk in chunked_reader(dst):
+        md5.update(chunk)
+    dl_checksum = md5.digest().hex()
+    if dl_checksum != checksum:
+        raise ValueError(f"expected checksum {checksum} but received {dl_checksum}")
+    os.remove(dst)
 
 
 def run(n):
