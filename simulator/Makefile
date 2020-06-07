@@ -1,11 +1,24 @@
-install:
-	sh ./install.sh
+build:
+	# Build the jotfs binary
+	mkdir -p bin
+	go build -o ./bin/jotfs ../cmd/jotfs
 
-gendata:
-	python3 create_data_files.py
+testdata:
+	# Build the testdata binary and generate the data used for the tests
+	mkdir -p data
+	go build -o ./bin/testdata ../cmd/testdata
+	chmod u+x ./bin/testdata
+	bash gen_testdata.sh
 
 pip:
-	python3 -m pip install -r requirements.txt
+	# Install the python packages required for running the simulator
+	python -m pip install -r requirements.txt
 
-run: install gendata pip
-	python3 run.py
+download-jot-binary:
+	# Download the latest release of the jot CLI tool from github
+	bash download_jot_binary.sh
+
+run: build testdata pip download_jot_binary
+	docker run --rm --name minio-jotfs-integration -p 9004:9000 -d minio/minio server /tmp/data
+	python run.py -n 30
+	docker stop minio-jotfs-integration

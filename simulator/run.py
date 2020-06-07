@@ -44,7 +44,7 @@ if not os.path.exists(MINIO_DIR):
     os.mkdir(MINIO_DIR)
 
 
-cmd_preamble = ["jot", "--endpoint", ENDPOINT]
+cmd_preamble = ["./bin/jot", "--endpoint", ENDPOINT]
 
 
 def upload_file(name):
@@ -224,8 +224,6 @@ def setup():
     """Starts the Minio & JotFS servers."""
     processes = []
     try:
-        minio_p = subprocess.Popen(["./bin/minio", "server", "--quiet", "--address", CFG["store"]["endpoint"], MINIO_DIR])
-        processes.append(minio_p)
         s3.create_bucket(Bucket=BUCKET)
         jotfs_p = subprocess.Popen(["./bin/jotfs", "-config", "config.toml", "-db", DBNAME, "-debug"])
         processes.append(jotfs_p)

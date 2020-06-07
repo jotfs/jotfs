@@ -9,5 +9,6 @@ access_key = "minioadmin"
 secret_key = "minioadmin"
 path_style = true
 disable_ssl = true
-endpoint = "localhost:9001"
+endpoint = "localhost:9004"
 bucket = "jotfs-test"
+region = "eu-west-1"
