@@ -18,7 +18,7 @@ download-jot-binary:
 	# Download the latest release of the jot CLI tool from github
 	bash download_jot_binary.sh
 
-run: build testdata pip download_jot_binary
+run: build testdata pip download-jot-binary
 	docker run --rm --name minio-jotfs-integration -p 9004:9000 -d minio/minio server /tmp/data
 	python run.py -n 30
 	docker stop minio-jotfs-integration
