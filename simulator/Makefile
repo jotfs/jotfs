@@ -20,5 +20,6 @@ download-jot-binary:
 
 run: build testdata pip download-jot-binary
 	docker run --rm --name minio-jotfs-integration -p 9004:9000 -d minio/minio server /tmp/data
-	python run.py -n 30
+	sleep 3  # give minio a chance to start
+	python run.py -n 30 --seed 15644
 	docker stop minio-jotfs-integration

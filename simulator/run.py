@@ -2,7 +2,6 @@ import subprocess
 import os
 import hashlib
 import random
-import tempfile
 import sqlite3
 import time
 import shutil
@@ -19,6 +18,7 @@ DATA_DIR = os.path.join(DIR, "data")
 TEST_DIR = os.path.join(DIR, f"test-{int(time.time() * 1000)}")
 DOWNLOADS_DIR = os.path.join(TEST_DIR, "downloads")
 MINIO_DIR = os.path.join(TEST_DIR, "minio")
+FILES_DIR = os.path.join(TEST_DIR, "files")
 CFG = toml.load("config.toml")
 BUCKET = CFG["store"]["bucket"]
 DBNAME = os.path.join(TEST_DIR, CFG["server"]["database"])
@@ -42,6 +42,9 @@ if not os.path.exists(DOWNLOADS_DIR):
 
 if not os.path.exists(MINIO_DIR):
     os.mkdir(MINIO_DIR)
+
+if not os.path.exists(FILES_DIR):
+    os.mkdir(FILES_DIR)
 
 
 cmd_preamble = ["./bin/jot", "--endpoint", ENDPOINT]
@@ -98,7 +101,7 @@ def assemble_file(names):
     """
     md5 = hashlib.md5()
     filename = ''.join([name.split('-')[-1] for name in names])
-    fpath = os.path.join(tempfile.gettempdir(), filename)
+    fpath = os.path.join(FILES_DIR, filename)
     with open(fpath, "wb") as dst:
         for name in names:
             for chunk in chunked_reader(os.path.join(DATA_DIR, name)):
@@ -157,19 +160,6 @@ def check_db_files(names):
         raise ValueError(f"file names don't match\n{names}\n{db_names}")
 
 
-def download_and_validate_checksum(name, checksum):
-    """Downloads a file and validates its MD5 checksum."""
-    dst = os.path.join(DOWNLOADS_DIR, os.path.basename(name))
-    download_file(src=name, dst=dst)
-    md5 = hashlib.md5()
-    for chunk in chunked_reader(dst):
-        md5.update(chunk)
-    dl_checksum = md5.digest().hex()
-    if dl_checksum != checksum:
-        raise ValueError(f"expected checksum {checksum} but received {dl_checksum}")
-    os.remove(dst)
-
-
 def run(n):
     """Run the tests with n files."""
     base_files = os.listdir(DATA_DIR)
@@ -192,7 +182,6 @@ def run(n):
     # Validation checks
     check_pack_sizes()
     check_pack_checksums()
-    check_db_files({u[0] for u in uploaded})
 
     print(server_stats())
 
@@ -215,7 +204,6 @@ def run(n):
         raise ValueError(f"vacuum failed {status}")
 
     # Check that the remaining files can still be downloaded after the vacuum
-    check_db_files({u[0] for u in remaining})
     for name, checksum in remaining:
         download_and_validate_checksum(name, checksum)
 

@@ -8,12 +8,14 @@ if [[ "$OSTYPE" == "linux"* ]]; then
         build="linux_amd64"
     else
         echo "unsupported architecture $arch for $OS"
+        exit 1
     fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     if [[ "$arch" == "x86_64" ]]; then
         build="darwin_amd64"
     else
         echo "unsupported architecture $arch for $OS"
+        exit 1
     fi
 else
     echo "unsupported OS $OSTYPE"
