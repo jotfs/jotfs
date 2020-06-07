@@ -9,10 +9,11 @@ services:
 before_install:
   - docker pull minio/minio
   - go get -t -v ./...
+  - pyenv global 3.7.1
 
 script:
   - make tests
+  - cd simulator && make run
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
-
