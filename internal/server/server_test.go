@@ -18,8 +18,8 @@ import (
 	"github.com/jotfs/jotfs/internal/object"
 	pb "github.com/jotfs/jotfs/internal/protos"
 	"github.com/jotfs/jotfs/internal/sum"
+	"github.com/rs/xid"
 
-	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/twitchtv/twirp"
@@ -413,10 +413,7 @@ func TestMergeErrors(t *testing.T) {
 }
 
 func testServer(t *testing.T, versioning bool) (*Server, *mockStore, string) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := xid.New()
 	name := filepath.Join(os.TempDir(), "jotfs-"+id.String())
 	adapter, err := db.EmptyDisk(name)
 	if err != nil {
