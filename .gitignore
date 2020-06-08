@@ -1,5 +1,4 @@
 *.db
-**/jotfs.toml
 .vscode
 simulator/data
 simulator/bin

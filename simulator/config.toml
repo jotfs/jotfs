@@ -5,8 +5,6 @@ avg_chunk_kib = 1024
 port = 6776
 
 [store]
-access_key = "minioadmin"
-secret_key = "minioadmin"
 path_style = true
 disable_ssl = true
 endpoint = "localhost:9004"

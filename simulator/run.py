@@ -9,7 +9,6 @@ import re
 import argparse
 
 import boto3
-import toml
 import blake3
 
 
@@ -19,20 +18,21 @@ TEST_DIR = os.path.join(DIR, f"test-{int(time.time() * 1000)}")
 DOWNLOADS_DIR = os.path.join(TEST_DIR, "downloads")
 MINIO_DIR = os.path.join(TEST_DIR, "minio")
 FILES_DIR = os.path.join(TEST_DIR, "files")
-CFG = toml.load("config.toml")
-BUCKET = CFG["store"]["bucket"]
-DBNAME = os.path.join(TEST_DIR, CFG["server"]["database"])
+
+STORE_SECRET_KEY = "minioadmin"
+STORE_ACCESS_KEY = "minioadmin"
+BUCKET = "jotfs-test"
+STORE_ENDPOINT = "localhost:9004"
+DBNAME = os.path.join(TEST_DIR, "jotfs.db")
+PORT = 6776
 
 session = boto3.session.Session()
 s3 = session.client(
     service_name="s3",
-    aws_access_key_id=CFG["store"]["access_key"],
-    aws_secret_access_key=CFG["store"]["secret_key"],
-    endpoint_url=f"http://{CFG['store']['endpoint']}",
+    aws_access_key_id=STORE_ACCESS_KEY,
+    aws_secret_access_key=STORE_SECRET_KEY,
+    endpoint_url=f"http://{STORE_ENDPOINT}",
 )
-
-ENDPOINT = "http://localhost:" + str(CFG["server"]["port"])
-
 
 if not os.path.exists(TEST_DIR):
     os.mkdir(TEST_DIR)
@@ -47,7 +47,7 @@ if not os.path.exists(FILES_DIR):
     os.mkdir(FILES_DIR)
 
 
-cmd_preamble = ["./bin/jot", "--endpoint", ENDPOINT]
+cmd_preamble = ["./bin/jot", "--endpoint", f"http://localhost:{PORT}"]
 
 
 def upload_file(name):
@@ -208,11 +208,20 @@ def run(n):
 
 
 def setup():
-    """Starts the Minio & JotFS servers."""
+    """Start the JotFS server."""
     processes = []
     try:
         s3.create_bucket(Bucket=BUCKET)
-        jotfs_p = subprocess.Popen(["./bin/jotfs", "-config", "config.toml", "-db", DBNAME, "-debug"])
+        jotfs_p = subprocess.Popen([
+            "./bin/jotfs",
+            "-db", DBNAME,
+            "-port", str(PORT),
+            "-store_bucket", BUCKET,
+            "-store_access_key", STORE_ACCESS_KEY,
+            "-store_secret_key", STORE_SECRET_KEY,
+            "-store_endpoint", STORE_ENDPOINT,
+            "-debug", "-store_path_style", "-store_disable_ssl"
+        ])
         processes.append(jotfs_p)
         return processes
     except Exception as e:

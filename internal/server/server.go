@@ -51,10 +51,10 @@ type Config struct {
 
 // ChunkerParams store the parameters that should be used to chunk files for a server.
 type ChunkerParams struct {
-	MinChunkSize  uint `toml:"min_chunk_size"`
-	AvgChunkSize  uint `toml:"avg_chunk_size"`
-	MaxChunkSize  uint `toml:"max_chunk_size"`
-	Normalization uint `toml:"normalization"`
+	MinChunkSize  uint `json:"min_chunk_size"`
+	AvgChunkSize  uint `json:"avg_chunk_size"`
+	MaxChunkSize  uint `json:"max_chunk_size"`
+	Normalization uint `json:"normalization"`
 }
 
 // Server implements the Api interface specified in upload.proto.

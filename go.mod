@@ -3,7 +3,6 @@ module github.com/jotfs/jotfs
 go 1.14
 
 require (
-	github.com/BurntSushi/toml v0.3.1
 	github.com/DataDog/zstd v1.4.5
 	github.com/aws/aws-sdk-go v1.30.12
 	github.com/davecgh/go-spew v1.1.1 // indirect

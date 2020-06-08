@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,7 +20,6 @@ import (
 	"github.com/jotfs/jotfs/internal/store"
 	"github.com/jotfs/jotfs/internal/store/s3"
 
-	"github.com/BurntSushi/toml"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog"
@@ -32,6 +32,7 @@ const (
 	defaultLogLevel = "warn"
 
 	defaultStoreEndpoint = "s3.amazonaws.com"
+	defaultRegion        = "us-east-1"
 
 	kiB = 1024
 	miB = 1024 * kiB
@@ -43,50 +44,30 @@ const (
 	defaultAvgKib        = 1024      // 1 MiB
 	defaultNormalization = 2
 
-	chunkParamsKey = "params.toml"
-)
-
-// Environment variable names for store credentials
-const (
-	EnvStoreAccessKey = "JOTFS_STORE_ACCESS_KEY"
-	EnvStoreSecretKey = "JOTFS_STORE_SECRET_KEY"
+	chunkParamsKey = "params.json"
 )
 
 type serverConfig struct {
-	Port              int    `toml:"port"`
-	Database          string `toml:"database"`
-	VersioningEnabled bool   `toml:"enable_versioning"`
-	AvgChunkKiB       uint   `toml:"avg_chunk_kib"`
-	LogLevel          string `toml:"log_level"`
+	Port              uint
+	Database          string
+	VersioningEnabled bool
+	AvgChunkKiB       uint
+	LogLevel          string
 }
 
 type storeConfig struct {
-	AccessKey  string `toml:"access_key"`
-	SecretKey  string `toml:"secret_key"`
-	Bucket     string `toml:"bucket"`
-	Region     string `toml:"region"`
-	DisableSSL bool   `toml:"disable_ssl"`
-	PathStyle  bool   `toml:"path_style"`
-	Endpoint   string `toml:"endpoint"`
+	AccessKey  string
+	SecretKey  string
+	Bucket     string
+	Region     string
+	DisableSSL bool
+	PathStyle  bool
+	Endpoint   string
 }
 
 type config struct {
-	Server *serverConfig `toml:"server"`
-	Store  *storeConfig  `toml:"store"`
-}
-
-func readConfig(filename string) (config, error) {
-	if exists, err := fileExists(filename); err != nil {
-		return config{}, err
-	} else if !exists {
-		return config{}, fmt.Errorf("config file %s not found", filename)
-	}
-
-	var cfg config
-	if _, err := toml.DecodeFile(filename, &cfg); err != nil {
-		return config{}, err
-	}
-	return cfg, nil
+	Server *serverConfig
+	Store  *storeConfig
 }
 
 func openDB(filename string) (*db.Adapter, error) {
@@ -129,84 +110,34 @@ func fileExists(f string) (bool, error) {
 	return true, nil
 }
 
-func requiredFieldError(field string) error {
-	return fmt.Errorf("field %q is reqiured", field)
+func requiredFlagError(flag string) error {
+	return fmt.Errorf("flag -%s is reqiured", flag)
 }
 
 func (c serverConfig) validate() error {
-	if c.Database == "" {
-		return requiredFieldError("database")
-	}
-	if c.AvgChunkKiB == 0 {
-		return requiredFieldError("avg_chunk_kib")
-	}
 	if c.AvgChunkKiB < minAvgKib || c.AvgChunkKiB > maxAvgKib {
-		return fmt.Errorf("avg_chunk_kib must be in range %d to %d", minAvgKib, maxAvgKib)
+		return fmt.Errorf("-chunk_size must be in range %d to %d", minAvgKib, maxAvgKib)
 	}
 	switch c.LogLevel {
 	case "", "debug", "info", "warn", "error":
 		break
 	default:
-		return fmt.Errorf("invalid log_level %q. Must be one of: debug, info, warn, error", c.LogLevel)
+		return fmt.Errorf("invalid -log_level %q. Must be one of: debug, info, warn, error", c.LogLevel)
 	}
 	return nil
 }
 
 func (c storeConfig) validate() error {
 	if c.AccessKey == "" {
-		return requiredFieldError("access_key")
+		return requiredFlagError("store_access_key")
 	}
 	if c.SecretKey == "" {
-		return requiredFieldError("secret_key")
+		return requiredFlagError("store_secret_key")
 	}
 	if c.Bucket == "" {
-		return requiredFieldError("bucket")
+		return requiredFlagError("store_bucket")
 	}
 	return nil
-}
-
-func (c config) validate() error {
-	if c.Server == nil {
-		return fmt.Errorf("section [server] is required")
-	}
-	if c.Store == nil {
-		return fmt.Errorf("section [store] is required")
-	}
-	if err := c.Server.validate(); err != nil {
-		return fmt.Errorf("[server]: %w", err)
-	}
-	if err := c.Store.validate(); err != nil {
-		return fmt.Errorf("[store]: %w", err)
-	}
-	return nil
-}
-
-func (c *serverConfig) setDefaults() {
-	if c.Port == 0 {
-		c.Port = defaultPort
-	}
-	if c.Database == "" {
-		c.Database = defaultDatabase
-	}
-	if c.AvgChunkKiB == 0 {
-		c.AvgChunkKiB = defaultAvgKib
-		fmt.Printf("Using default average chunk size %d KiB\n", defaultAvgKib)
-	}
-	if c.LogLevel == "" {
-		c.LogLevel = defaultLogLevel
-	}
-}
-
-func (c *storeConfig) setDefaults() {
-	if c.Endpoint == "" {
-		c.Endpoint = defaultStoreEndpoint
-		fmt.Printf("Using default store endpoint %s", defaultStoreEndpoint)
-	}
-}
-
-func (c *config) setDefaults() {
-	c.Server.setDefaults()
-	c.Store.setDefaults()
 }
 
 func loggingServerHooks() *twirp.ServerHooks {
@@ -289,8 +220,8 @@ func getChunkerParams(ctx context.Context, s store.Store, bucket string) (*serve
 	if err != nil {
 		return nil, fmt.Errorf("reading object: %v", err)
 	}
-	if _, err = toml.Decode(string(b), &params); err != nil {
-		return nil, fmt.Errorf("decoding toml: %v", err)
+	if err := json.Unmarshal(b, &params); err != nil {
+		return nil, fmt.Errorf("decoding JSON: %v", err)
 	}
 
 	return &params, nil
@@ -301,12 +232,11 @@ func saveChunkerParams(ctx context.Context, s store.Store, bucket string, params
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	var buf bytes.Buffer
-	if err := toml.NewEncoder(&buf).Encode(params); err != nil {
-		return fmt.Errorf("encoding toml: %v", err)
+	b, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("encoding json: %v", err)
 	}
-
-	if err := s.Put(ctx, bucket, chunkParamsKey, &buf); err != nil {
+	if err := s.Put(ctx, bucket, chunkParamsKey, bytes.NewReader(b)); err != nil {
 		return fmt.Errorf("putting object to store: %v", err)
 	}
 
@@ -328,59 +258,58 @@ func getLoggerLevel(s string) zerolog.Level {
 	}
 }
 
-var (
-	configFileName = flag.String("config", "jotfs.toml", "path to config file")
-	dbName         = flag.String("db", "", "override the database file path")
-	debug          = flag.Bool("debug", false, "output debug logs")
-)
-
 var logger zerolog.Logger
 
 func run() error {
+	var serverConfig serverConfig
+	flag.UintVar(&serverConfig.Port, "port", defaultPort, "")
+	flag.StringVar(&serverConfig.Database, "db", defaultDatabase, "location of metadata cache")
+	flag.BoolVar(&serverConfig.VersioningEnabled, "versioning", false, "enable file versioning")
+	flag.UintVar(&serverConfig.AvgChunkKiB, "chunk_size", defaultAvgKib, "average chunk size in KiB")
+	flag.StringVar(&serverConfig.LogLevel, "log_level", defaultLogLevel, "server logging level")
+
+	var storeConfig storeConfig
+	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "(required) access key for the object store")
+	flag.StringVar(&storeConfig.SecretKey, "store_secret_key", "", "(required) secret key for the object store")
+	flag.StringVar(&storeConfig.Bucket, "store_bucket", "", "(required) bucket name")
+	flag.BoolVar(&storeConfig.DisableSSL, "store_disable_ssl", false, "don't require an SSL connection to connect to the store")
+	flag.BoolVar(&storeConfig.PathStyle, "store_path_style", false, "use path-style requests to the store")
+	flag.StringVar(&storeConfig.Endpoint, "store_endpoint", defaultStoreEndpoint, "")
+	flag.StringVar(&storeConfig.Region, "store_region", defaultRegion, "store region name")
+
+	var debug bool
+	flag.BoolVar(&debug, "debug", false, "enable debug output")
 	flag.Parse()
 
-	// Load and validate the config
-	cfg, err := readConfig(*configFileName)
-	if err != nil {
-		return fmt.Errorf("reading config: %v", err)
+	if err := serverConfig.validate(); err != nil {
+		return err
 	}
-	if *dbName != "" {
-		cfg.Server.Database = *dbName
+	if err := storeConfig.validate(); err != nil {
+		return err
 	}
-	if cfg.Store.AccessKey == "" {
-		cfg.Store.AccessKey = os.Getenv(EnvStoreAccessKey)
-	}
-	if cfg.Store.SecretKey == "" {
-		cfg.Store.SecretKey = os.Getenv(EnvStoreSecretKey)
-	}
-	if err := cfg.validate(); err != nil {
-		return fmt.Errorf("invalid config: %v", err)
-	}
-	cfg.setDefaults()
-
 	// Configure the logger
-	if *debug {
+	if debug {
 		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
 		fmt.Println("Debug mode enabled")
 	} else {
-		level := getLoggerLevel(cfg.Server.LogLevel)
+		level := getLoggerLevel(serverConfig.LogLevel)
 		logger = zerolog.New(os.Stderr).With().Timestamp().Logger().Level(level)
 		fmt.Printf("Logging level: %s\n", level.String())
 	}
 
-	adapter, err := openDB(cfg.Server.Database)
+	adapter, err := openDB(serverConfig.Database)
 	if err != nil {
 		return fmt.Errorf("database: %v", err)
 	}
 
-	fmt.Printf("Connecting to object store %s\n", cfg.Store.Endpoint)
+	fmt.Printf("Connecting to object store %s\n", storeConfig.Endpoint)
 	store, err := s3.New(s3.Config{
-		Region:     cfg.Store.Region,
-		Endpoint:   cfg.Store.Endpoint,
-		AccessKey:  cfg.Store.AccessKey,
-		SecretKey:  cfg.Store.SecretKey,
-		PathStyle:  cfg.Store.PathStyle,
-		DisableSSL: cfg.Store.DisableSSL,
+		Region:     storeConfig.Region,
+		Endpoint:   storeConfig.Endpoint,
+		AccessKey:  storeConfig.AccessKey,
+		SecretKey:  storeConfig.SecretKey,
+		PathStyle:  storeConfig.PathStyle,
+		DisableSSL: storeConfig.DisableSSL,
 	})
 	if err != nil {
 		return fmt.Errorf("connecting to store: ")
@@ -388,32 +317,32 @@ func run() error {
 
 	// Get the chunking parameters from the store or create the object if it doesn't exist
 	ctx := context.Background()
-	chunkerParams, err := getChunkerParams(ctx, store, cfg.Store.Bucket)
+	chunkerParams, err := getChunkerParams(ctx, store, storeConfig.Bucket)
 	if err != nil {
 		return fmt.Errorf("getting chunker params: %v", err)
 	}
 	if chunkerParams == nil {
-		avg := cfg.Server.AvgChunkKiB * kiB
+		avg := serverConfig.AvgChunkKiB * kiB
 		chunkerParams = &server.ChunkerParams{
 			MinChunkSize:  avg / 4,
 			AvgChunkSize:  avg,
 			MaxChunkSize:  avg * 4,
 			Normalization: defaultNormalization,
 		}
-		if err = saveChunkerParams(ctx, store, cfg.Store.Bucket, chunkerParams); err != nil {
+		if err = saveChunkerParams(ctx, store, storeConfig.Bucket, chunkerParams); err != nil {
 			return fmt.Errorf("saving chunker params: %v", err)
 		}
 	}
 
-	if cfg.Server.VersioningEnabled {
+	if serverConfig.VersioningEnabled {
 		fmt.Println("File versioning enabled")
 	} else {
 		fmt.Println("File versioning disabled")
 	}
 
 	srv := server.New(adapter, store, server.Config{
-		Bucket:            cfg.Store.Bucket,
-		VersioningEnabled: cfg.Server.VersioningEnabled,
+		Bucket:            storeConfig.Bucket,
+		VersioningEnabled: serverConfig.VersioningEnabled,
 		MaxChunkSize:      uint64(chunkerParams.MaxChunkSize),
 		MaxPackfileSize:   maxPackfileSize,
 		Params:            *chunkerParams,
@@ -425,8 +354,8 @@ func run() error {
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
 	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
-	fmt.Printf("Listening on port %d\n", cfg.Server.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.Server.Port), mux)
+	fmt.Printf("Listening on port %d\n", serverConfig.Port)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", serverConfig.Port), mux)
 
 	return err
 }
