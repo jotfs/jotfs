@@ -26,6 +26,13 @@ import (
 	"github.com/twitchtv/twirp"
 )
 
+// Build flags
+var (
+	Version   string
+	BuildDate string
+	CommitID  string
+)
+
 const (
 	defaultDatabase = "./jotfs.db"
 	defaultPort     = 6777
@@ -267,9 +274,9 @@ var logger zerolog.Logger
 
 func run() error {
 	var serverConfig serverConfig
-	flag.UintVar(&serverConfig.Port, "port", defaultPort, "")
+	flag.UintVar(&serverConfig.Port, "port", defaultPort, "server listening port")
 	flag.StringVar(&serverConfig.Database, "db", defaultDatabase, "location of metadata cache")
-	flag.BoolVar(&serverConfig.VersioningEnabled, "versioning", false, "enable file versioning")
+	flag.BoolVar(&serverConfig.VersioningEnabled, "enable_versioning", false, "enable file versioning")
 	flag.UintVar(&serverConfig.AvgChunkKiB, "chunk_size", defaultAvgKib, "average chunk size in KiB")
 	flag.StringVar(&serverConfig.LogLevel, "log_level", defaultLogLevel, "server logging level")
 	flag.StringVar(&serverConfig.TLSCert, "tls_cert", "", "server TLS certificate file")
@@ -285,8 +292,20 @@ func run() error {
 	flag.StringVar(&storeConfig.Region, "store_region", defaultRegion, "store region name")
 
 	var debug bool
+	var version bool
 	flag.BoolVar(&debug, "debug", false, "enable debug output")
+	flag.BoolVar(&version, "version", false, "output version info and exit")
+
 	flag.Parse()
+
+	if version {
+		format := "%-10s:  %s\n"
+		fmt.Printf(format, "Version", Version)
+		fmt.Printf(format, "Build date", BuildDate)
+		fmt.Printf(format, "Commit ID", CommitID)
+		return nil
+	}
+
 
 	if err := serverConfig.validate(); err != nil {
 		return err
@@ -321,6 +340,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("connecting to store: ")
 	}
+
+	fmt.Printf("Using bucket %s\n", storeConfig.Bucket)
 
 	// Get the chunking parameters from the store or create the object if it doesn't exist
 	ctx := context.Background()
