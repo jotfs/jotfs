@@ -46,6 +46,12 @@ const (
 	chunkParamsKey = "params.toml"
 )
 
+// Environment variable names for store credentials
+const (
+	EnvStoreAccessKey = "JOTFS_STORE_ACCESS_KEY"
+	EnvStoreSecretKey = "JOTFS_STORE_SECRET_KEY"
+)
+
 type serverConfig struct {
 	Port              int    `toml:"port"`
 	Database          string `toml:"database"`
@@ -136,6 +142,12 @@ func (c serverConfig) validate() error {
 	}
 	if c.AvgChunkKiB < minAvgKib || c.AvgChunkKiB > maxAvgKib {
 		return fmt.Errorf("avg_chunk_kib must be in range %d to %d", minAvgKib, maxAvgKib)
+	}
+	switch c.LogLevel {
+	case "", "debug", "info", "warn", "error":
+		break
+	default:
+		return fmt.Errorf("invalid log_level %q. Must be one of: debug, info, warn, error", c.LogLevel)
 	}
 	return nil
 }
@@ -332,11 +344,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("reading config: %v", err)
 	}
-
 	if *dbName != "" {
 		cfg.Server.Database = *dbName
 	}
-
+	if cfg.Store.AccessKey == "" {
+		cfg.Store.AccessKey = os.Getenv(EnvStoreAccessKey)
+	}
+	if cfg.Store.SecretKey == "" {
+		cfg.Store.SecretKey = os.Getenv(EnvStoreSecretKey)
+	}
 	if err := cfg.validate(); err != nil {
 		return fmt.Errorf("invalid config: %v", err)
 	}
@@ -478,7 +494,7 @@ func (w *responseWriter) Write(p []byte) (int, error) {
 func main() {
 	err := run()
 	if err != nil {
-		logger.Error().Msg(err.Error())
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(0)
