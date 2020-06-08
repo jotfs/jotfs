@@ -23,3 +23,13 @@ run: build testdata pip download-jot-binary
 	sleep 3  # give minio a chance to start
 	python run.py -n 30 --seed 15644
 	docker stop minio-jotfs-integration
+
+run-local: build testdata pip
+	# Runs the integration tests using a locally built version of the jot client. Used
+	# during development. Requires the JOT_SRC_DIR environment variable to be set to 
+	# your jot source directory.
+	bash build_local_jot.sh
+	docker run --rm --name minio-jotfs-integration -p 9004:9000 -d minio/minio server /tmp/data
+	sleep 3  # give minio a chance to start
+	python run.py -n 30 --seed 15644
+	docker stop minio-jotfs-integration

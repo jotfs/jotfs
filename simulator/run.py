@@ -25,6 +25,8 @@ BUCKET = "jotfs-test"
 STORE_ENDPOINT = "localhost:9004"
 DBNAME = os.path.join(TEST_DIR, "jotfs.db")
 PORT = 6776
+TLS_CERT = "server.test.crt"
+TLS_KEY = "server.test.key"
 
 session = boto3.session.Session()
 s3 = session.client(
@@ -47,7 +49,7 @@ if not os.path.exists(FILES_DIR):
     os.mkdir(FILES_DIR)
 
 
-cmd_preamble = ["./bin/jot", "--endpoint", f"http://localhost:{PORT}"]
+cmd_preamble = ["./bin/jot", "--tls_skip_verify", "--endpoint", f"https://localhost:{PORT}"]
 
 
 def upload_file(name):
@@ -220,6 +222,8 @@ def setup():
             "-store_access_key", STORE_ACCESS_KEY,
             "-store_secret_key", STORE_SECRET_KEY,
             "-store_endpoint", STORE_ENDPOINT,
+            "-tls_cert", TLS_CERT,
+            "-tls_key", TLS_KEY,
             "-debug", "-store_path_style", "-store_disable_ssl"
         ])
         processes.append(jotfs_p)

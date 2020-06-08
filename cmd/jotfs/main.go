@@ -53,6 +53,8 @@ type serverConfig struct {
 	VersioningEnabled bool
 	AvgChunkKiB       uint
 	LogLevel          string
+	TLSCert           string
+	TLSKey            string
 }
 
 type storeConfig struct {
@@ -117,6 +119,9 @@ func requiredFlagError(flag string) error {
 func (c serverConfig) validate() error {
 	if c.AvgChunkKiB < minAvgKib || c.AvgChunkKiB > maxAvgKib {
 		return fmt.Errorf("-chunk_size must be in range %d to %d", minAvgKib, maxAvgKib)
+	}
+	if (c.TLSCert == "" && c.TLSKey != "") || (c.TLSCert != "" && c.TLSKey == "") {
+		return fmt.Errorf("flags -ssl_cert and -ssl_key must be provided together")
 	}
 	switch c.LogLevel {
 	case "", "debug", "info", "warn", "error":
@@ -267,11 +272,13 @@ func run() error {
 	flag.BoolVar(&serverConfig.VersioningEnabled, "versioning", false, "enable file versioning")
 	flag.UintVar(&serverConfig.AvgChunkKiB, "chunk_size", defaultAvgKib, "average chunk size in KiB")
 	flag.StringVar(&serverConfig.LogLevel, "log_level", defaultLogLevel, "server logging level")
+	flag.StringVar(&serverConfig.TLSCert, "tls_cert", "", "server TLS certificate file")
+	flag.StringVar(&serverConfig.TLSKey, "tls_key", "", "server TLS key file")
 
 	var storeConfig storeConfig
-	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "(required) access key for the object store")
-	flag.StringVar(&storeConfig.SecretKey, "store_secret_key", "", "(required) secret key for the object store")
-	flag.StringVar(&storeConfig.Bucket, "store_bucket", "", "(required) bucket name")
+	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "access key for the object store (required)")
+	flag.StringVar(&storeConfig.SecretKey, "store_secret_key", "", "secret key for the object store (required)")
+	flag.StringVar(&storeConfig.Bucket, "store_bucket", "", "bucket name (required)")
 	flag.BoolVar(&storeConfig.DisableSSL, "store_disable_ssl", false, "don't require an SSL connection to connect to the store")
 	flag.BoolVar(&storeConfig.PathStyle, "store_path_style", false, "use path-style requests to the store")
 	flag.StringVar(&storeConfig.Endpoint, "store_endpoint", defaultStoreEndpoint, "")
@@ -355,9 +362,12 @@ func run() error {
 	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
 	fmt.Printf("Listening on port %d\n", serverConfig.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%d", serverConfig.Port), mux)
-
-	return err
+	if serverConfig.TLSCert != "" {
+		fmt.Println("TLS enabled")
+		return http.ListenAndServeTLS(fmt.Sprintf(":%d", serverConfig.Port), serverConfig.TLSCert, serverConfig.TLSKey, mux)
+	} else {
+		return http.ListenAndServe(fmt.Sprintf(":%d", serverConfig.Port), mux)
+	}
 }
 
 // postHandler returns a http handler which returns a 500 error code unless invoked
