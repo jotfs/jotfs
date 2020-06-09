@@ -12,6 +12,8 @@ RUN apk add --update gcc musl-dev && \
 
 FROM alpine:3
 
+WORKDIR /app
+
 COPY --from=builder /build/jotfs .
 
 ENTRYPOINT ["./jotfs"]
