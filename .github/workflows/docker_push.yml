@@ -3,7 +3,7 @@ name: docker_push
 on:
   push:
     branches:
-      - refs/tags/*
+      - master
 
 jobs:
   main:
