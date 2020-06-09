@@ -46,6 +46,8 @@ type Config struct {
 	// MaxPackfileSize is the maximum permitted size of a packfile in bytes.
 	MaxPackfileSize uint64
 
+	DownloadTimeout time.Duration
+
 	Params ChunkerParams
 }
 
@@ -426,7 +428,10 @@ func (srv *Server) Download(ctx context.Context, id *pb.FileID) (*pb.DownloadRes
 	bucket := srv.cfg.Bucket
 	for i, section := range sections {
 		key := section.packSum.AsHex() + ".pack"
-		expires := time.Duration(15 * time.Minute)
+		expires := time.Duration(120 * time.Minute)
+		if srv.cfg.DownloadTimeout != 0 {
+			expires = srv.cfg.DownloadTimeout
+		}
 		rnge := &store.Range{From: section.start, To: section.end}
 		url, err := srv.store.PresignGetURL(bucket, key, expires, rnge)
 		if err != nil {

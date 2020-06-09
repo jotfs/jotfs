@@ -34,9 +34,10 @@ var (
 )
 
 const (
-	defaultDatabase = "./jotfs.db"
-	defaultPort     = 6777
-	defaultLogLevel = "warn"
+	defaultDatabase         = "./jotfs.db"
+	defaultPort             = 6777
+	defaultLogLevel         = "warn"
+	defaultDLTimeoutMinutes = 120
 
 	defaultStoreEndpoint = "s3.amazonaws.com"
 	defaultRegion        = "us-east-1"
@@ -62,6 +63,7 @@ type serverConfig struct {
 	LogLevel          string
 	TLSCert           string
 	TLSKey            string
+	DLTimeoutMinutes  uint
 }
 
 type storeConfig struct {
@@ -281,6 +283,7 @@ func run() error {
 	flag.StringVar(&serverConfig.LogLevel, "log_level", defaultLogLevel, "server logging level")
 	flag.StringVar(&serverConfig.TLSCert, "tls_cert", "", "server TLS certificate file")
 	flag.StringVar(&serverConfig.TLSKey, "tls_key", "", "server TLS key file")
+	flag.UintVar(&serverConfig.DLTimeoutMinutes, "download_timeout", defaultDLTimeoutMinutes, "the maximum allotted time, in minutes, for a client to download a file")
 
 	var storeConfig storeConfig
 	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "access key for the object store (required)")
@@ -305,7 +308,6 @@ func run() error {
 		fmt.Printf(format, "Commit ID", CommitID)
 		return nil
 	}
-
 
 	if err := serverConfig.validate(); err != nil {
 		return err
@@ -373,6 +375,7 @@ func run() error {
 		VersioningEnabled: serverConfig.VersioningEnabled,
 		MaxChunkSize:      uint64(chunkerParams.MaxChunkSize),
 		MaxPackfileSize:   maxPackfileSize,
+		DownloadTimeout:   time.Minute * time.Duration(serverConfig.DLTimeoutMinutes),
 		Params:            *chunkerParams,
 	})
 	srv.SetLogger(logger)
