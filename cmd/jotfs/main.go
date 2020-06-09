@@ -142,12 +142,6 @@ func (c serverConfig) validate() error {
 }
 
 func (c storeConfig) validate() error {
-	if c.AccessKey == "" {
-		return requiredFlagError("store_access_key")
-	}
-	if c.SecretKey == "" {
-		return requiredFlagError("store_secret_key")
-	}
 	if c.Bucket == "" {
 		return requiredFlagError("store_bucket")
 	}
@@ -286,13 +280,13 @@ func run() error {
 	flag.UintVar(&serverConfig.DLTimeoutMinutes, "download_timeout", defaultDLTimeoutMinutes, "the maximum allotted time, in minutes, for a client to download a file")
 
 	var storeConfig storeConfig
-	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "access key for the object store (required)")
-	flag.StringVar(&storeConfig.SecretKey, "store_secret_key", "", "secret key for the object store (required)")
+	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "access key for the object store")
+	flag.StringVar(&storeConfig.SecretKey, "store_secret_key", "", "secret key for the object store")
 	flag.StringVar(&storeConfig.Bucket, "store_bucket", "", "bucket name (required)")
 	flag.BoolVar(&storeConfig.DisableSSL, "store_disable_ssl", false, "don't require an SSL connection to connect to the store")
 	flag.BoolVar(&storeConfig.PathStyle, "store_path_style", false, "use path-style requests to the store")
-	flag.StringVar(&storeConfig.Endpoint, "store_endpoint", defaultStoreEndpoint, "")
-	flag.StringVar(&storeConfig.Region, "store_region", defaultRegion, "store region name")
+	flag.StringVar(&storeConfig.Endpoint, "store_endpoint", "", "endpoint of S3-compatible store. Connects to AWS S3 by default")
+	flag.StringVar(&storeConfig.Region, "store_region", "", "store region name")
 
 	var debug bool
 	var version bool

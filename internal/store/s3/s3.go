@@ -38,8 +38,13 @@ func New(cfg Config) (*Store, error) {
 		Endpoint:         &cfg.Endpoint,
 		S3ForcePathStyle: &cfg.PathStyle,
 		DisableSSL:       &cfg.DisableSSL,
-		Credentials:      credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, ""),
 		Region:           &cfg.Region,
+	}
+	if cfg.AccessKey != "" {
+		acfg.Credentials = credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
+	} else {
+		fmt.Println("using shared credentials")
+		acfg.Credentials = credentials.NewSharedCredentials("", "")
 	}
 	sess, err := session.NewSession(&acfg)
 	if err != nil {
