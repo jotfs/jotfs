@@ -224,6 +224,7 @@ def setup():
             "-store_endpoint", STORE_ENDPOINT,
             "-tls_cert", TLS_CERT,
             "-tls_key", TLS_KEY,
+            "-store_region", "us-east-1",
             "-debug", "-store_path_style", "-store_disable_ssl"
         ])
         processes.append(jotfs_p)
