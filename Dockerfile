@@ -1,4 +1,4 @@
-FROM golang:1.14-buster as builder
+FROM golang:1.14-alpine3.12 as builder
 
 ENV GO111MODULE=on \
     CGO_ENABLED=1
@@ -7,9 +7,10 @@ WORKDIR /build
 
 COPY . .
 
-RUN go build -ldflags="-s -w" ./cmd/jotfs
+RUN apk add --update gcc musl-dev && \
+    go build -ldflags="-s -w" ./cmd/jotfs
 
-FROM debian:buster-slim
+FROM alpine:3
 
 COPY --from=builder /build/jotfs .
 
