@@ -4,6 +4,8 @@
 
 JotFS is a deduplicating file storage engine backed by S3. It works by splitting incoming files into small content-defined chunks and only storing those chunks which it has not seen yet.
 
+For a short explanation of how JotFS works, please see the [introductory article](https://www.eadan.net/blog/introducing-jotfs/).
+
 Features:
 
   - Reduces storage space
