@@ -64,6 +64,10 @@ The server stores metadata in a database file located at `./jotfs.db` by default
 docker run -v jotfs:/app jotfs/jotfs <FLAGS...>
 ```
 
+## Contributing
+
+Contributions to JotFS and its client applications are welcome. Please open an issue if you would like to report bugs or suggest new features.
+
 ## License
 
 JotFS is licensed under the Apache 2.0 License. See [LICENSE](./LICENSE) for details.
