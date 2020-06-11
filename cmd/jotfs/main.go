@@ -49,7 +49,7 @@ const (
 
 	minAvgKib            = 64
 	maxAvgKib            = 64 * 1024 // 64 MiB
-	defaultAvgKib        = 1024      // 1 MiB
+	defaultAvgKib        = 512
 	defaultNormalization = 2
 
 	chunkParamsKey = "params.json"

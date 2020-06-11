@@ -43,7 +43,7 @@ func New(cfg Config) (*Store, error) {
 	if cfg.AccessKey != "" {
 		acfg.Credentials = credentials.NewStaticCredentials(cfg.AccessKey, cfg.SecretKey, "")
 	} else {
-		fmt.Println("using shared credentials")
+		fmt.Println("Using shared credentials")
 		acfg.Credentials = credentials.NewSharedCredentials("", "")
 	}
 	sess, err := session.NewSession(&acfg)
