@@ -569,7 +569,7 @@ func (srv *Server) StartVacuum(ctx context.Context, _ *pb.Empty) (*pb.VacuumID, 
 		// returns
 		ctx := context.Background()
 
-		srv.logger.Info().Str("id", id).Msg("Manual vacuum initiated")
+		srv.logger.Info().Str("id", id).Msg("Vacuum initiated")
 		start := time.Now()
 
 		err := srv.runVacuum(ctx, time.Now())

@@ -11,7 +11,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/jotfs/jotfs/internal/db"
@@ -45,7 +47,8 @@ const (
 	kiB = 1024
 	miB = 1024 * kiB
 
-	maxPackfileSize = 128 * miB
+	maxPackfileSize          = 128 * miB
+	minVacuumScheduleMinutes = 5
 
 	minAvgKib            = 64
 	maxAvgKib            = 64 * 1024 // 64 MiB
@@ -56,14 +59,16 @@ const (
 )
 
 type serverConfig struct {
-	Port              uint
-	Database          string
-	VersioningEnabled bool
-	AvgChunkKiB       uint
-	LogLevel          string
-	TLSCert           string
-	TLSKey            string
-	DLTimeoutMinutes  uint
+	Port                  uint
+	Database              string
+	VersioningEnabled     bool
+	AvgChunkKiB           uint
+	LogLevel              string
+	TLSCert               string
+	TLSKey                string
+	DLTimeoutMinutes      uint
+	VacuumScheduleMinutes uint
+	DisableAutoVacuum     bool
 }
 
 type storeConfig struct {
@@ -131,6 +136,9 @@ func (c serverConfig) validate() error {
 	}
 	if (c.TLSCert == "" && c.TLSKey != "") || (c.TLSCert != "" && c.TLSKey == "") {
 		return fmt.Errorf("flags -ssl_cert and -ssl_key must be provided together")
+	}
+	if !c.DisableAutoVacuum && c.VacuumScheduleMinutes < minVacuumScheduleMinutes {
+		return fmt.Errorf("flag -vacuum_schedule must be at least %d", minVacuumScheduleMinutes)
 	}
 	switch c.LogLevel {
 	case "", "debug", "info", "warn", "error":
@@ -278,6 +286,8 @@ func run() error {
 	flag.StringVar(&serverConfig.TLSCert, "tls_cert", "", "server TLS certificate file")
 	flag.StringVar(&serverConfig.TLSKey, "tls_key", "", "server TLS key file")
 	flag.UintVar(&serverConfig.DLTimeoutMinutes, "download_timeout", defaultDLTimeoutMinutes, "the maximum allotted time, in minutes, for a client to download a file")
+	flag.UintVar(&serverConfig.VacuumScheduleMinutes, "vacuum_schedule", 180, "number of minutes between automatic vacuums")
+	flag.BoolVar(&serverConfig.DisableAutoVacuum, "disable_vacuum", false, "disable the automatic vacuum")
 
 	var storeConfig storeConfig
 	flag.StringVar(&storeConfig.AccessKey, "store_access_key", "", "access key for the object store")
@@ -309,6 +319,7 @@ func run() error {
 	if err := storeConfig.validate(); err != nil {
 		return err
 	}
+
 	// Configure the logger
 	if debug {
 		logger = zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Logger().Level(zerolog.DebugLevel)
@@ -379,13 +390,62 @@ func run() error {
 	mux.Handle(srvHandler.PathPrefix(), srvHandler)
 	mux.HandleFunc("/packfile", logHandler(postHandler(srv.PackfileUploadHandler), "PackfileUpload"))
 
-	fmt.Printf("Listening on port %d\n", serverConfig.Port)
-	if serverConfig.TLSCert != "" {
-		fmt.Println("TLS enabled")
-		return http.ListenAndServeTLS(fmt.Sprintf(":%d", serverConfig.Port), serverConfig.TLSCert, serverConfig.TLSKey, mux)
-	} else {
-		return http.ListenAndServe(fmt.Sprintf(":%d", serverConfig.Port), mux)
+	httpServer := &http.Server{
+		Addr:    fmt.Sprintf(":%d", serverConfig.Port),
+		Handler: mux,
 	}
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+
+	// Start the server
+	fmt.Printf("Listening on port %d\n", serverConfig.Port)
+	go func() {
+		var err error
+		if serverConfig.TLSCert != "" {
+			fmt.Println("TLS enabled")
+			err = httpServer.ListenAndServeTLS(serverConfig.TLSCert, serverConfig.TLSKey)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error().Msg(err.Error())
+		}
+	}()
+
+	// Start the background vacuum
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if !serverConfig.DisableAutoVacuum {
+		ticker := time.NewTicker(time.Minute * time.Duration(serverConfig.VacuumScheduleMinutes))
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					_, err := srv.StartVacuum(ctx, &pb.Empty{})
+					if err != nil {
+						logger.Error().Msg(err.Error())
+					}
+				}
+			}
+		}()
+	}
+
+	// Wait for a stop signal and then kill the vacuum process
+	<-done
+	cancel()
+
+	// Allow the server to shutdown gracefully
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	if err := httpServer.Shutdown(ctx); err != nil {
+		msg := fmt.Sprintf("server shutdown: %v", err)
+		logger.Error().Msg(msg)
+	}
+	fmt.Println("Server shutdown")
+	return nil
 }
 
 // postHandler returns a http handler which returns a 500 error code unless invoked
