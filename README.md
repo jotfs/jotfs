@@ -10,7 +10,7 @@ Features:
 
   - Reduces storage space
   - Reduces upload bandwidth
-  - Backed by S3 or S3 compatible storage (Minio, Azure blob, GCP etc.)
+  - Backed by S3 or S3 compatible storage (Minio, GCP etc.)
   - [Client library](https://github.com/jotfs/jot) available for Go (more languages planned)
   - [Client CLI](https://github.com/jotfs/jot) with familiar commands: `jot cp`, `jot ls` etc.
   - Optional file versioning
