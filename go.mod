@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/DataDog/zstd v1.4.5
-	github.com/aws/aws-sdk-go v1.30.12
+	github.com/aws/aws-sdk-go v1.33.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.4.0-rc.4.0.20200313231945-b860323f09d0
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
